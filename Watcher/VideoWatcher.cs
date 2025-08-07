@@ -27,7 +27,7 @@ namespace CountryTelegramBot
 
 
 
-        public VideoWatcher(TelegramBot bot, DbConnection dbConnection, IConfigurationSection config, TimeHelper timeHelper, IEnumerable<string>? watchFolders = null,
+        public VideoWatcher(TelegramBot bot, DbConnection dbConnection, CountryTelegramBot.Configs.CommonConfig config, TimeHelper timeHelper, IEnumerable<string>? watchFolders = null,
         ILogger? logger = null)
         {
             this.bot = bot ?? throw new ArgumentNullException(nameof(bot));
@@ -35,7 +35,7 @@ namespace CountryTelegramBot
             fileHelper = new FileHelper(logger);
             this.dbConnection = dbConnection;
 
-            watcherType = GetWatcherType(config["WatcherType"] ?? "ASAP");
+            watcherType = GetWatcherType(config.WatcherType ?? "ASAP");
 
             folders = watchFolders?.ToList() ?? new List<string>();
             watchers = new List<FileSystemWatcher>();
@@ -86,7 +86,7 @@ namespace CountryTelegramBot
         }
 
 
-        private async void SendVideo(object state)
+        private async void SendVideo(object? state)
         {
             var now = DateTime.Now;
             logger?.LogInformation($"{DateTime.Now.ToShortTimeString()}: Here is a tick in SendVideo");

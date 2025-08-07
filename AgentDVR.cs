@@ -11,60 +11,129 @@ namespace CountryTelegramBot
     public class AgentDVR
     {
         private readonly HttpClient httpClient;
-        private string agentDvrUrl;
-        private string agentDvrCredentials;
-        private string agentUser;
-        private string agentPass;
+        private readonly string agentDvrUrl;
+        private string? agentDvrCredentials;
+        private readonly string agentUser;
+        private readonly string agentPass;
         private readonly ILogger? logger;
-        private bool IsForcedArmedAtNight;
-        private bool IsForcedArmedAtDay;
-        private TimeHelper timeHelper;
-        private DailyScheduler dailyScheduler;
-        public AgentDVR(string agentDvrUrl, string user, string password, IConfigurationSection config, ILogger? logger)
+        private readonly bool IsForcedArmedAtNight;
+        private readonly bool IsForcedArmedAtDay;
+        private readonly TimeHelper timeHelper;
+        private readonly DailyScheduler dailyScheduler;
+        // Команды и endpoint'ы
+        private const string CommandArm = "/command/arm";
+        private const string CommandDisarm = "/command/disarm";
+        private const string CommandRestart = "/command/restart";
+        private const string CommandGetStatus = "/command/getStatus";
+        private const string CommandPing = "/command/ping";
+
+        /// <summary>
+        /// Создаёт экземпляр класса AgentDVR для управления DVR через HTTP API.
+        /// </summary>
+        /// <param name="agentDvrUrl">Базовый URL AgentDVR</param>
+        /// <param name="user">Имя пользователя DVR</param>
+        /// <param name="password">Пароль DVR</param>
+        /// <param name="config">Конфигурация общих параметров</param>
+        /// <param name="logger">Логгер</param>
+        /// <summary>
+        /// Создаёт экземпляр класса AgentDVR для управления DVR через HTTP API.
+        /// </summary>
+        /// <param name="agentDvrUrl">Базовый URL AgentDVR</param>
+        /// <param name="user">Имя пользователя DVR</param>
+        /// <param name="password">Пароль DVR</param>
+        /// <param name="config">Конфигурация общих параметров</param>
+        /// <param name="logger">Логгер</param>
+        /// <param name="httpClient">Экземпляр HttpClient (желательно внедрять через DI)</param>
+        public AgentDVR(string agentDvrUrl, string user, string password, Configs.CommonConfig config, ILogger? logger, HttpClient httpClient)
         {
+            if (string.IsNullOrWhiteSpace(agentDvrUrl))
+                throw new ArgumentException("agentDvrUrl не может быть пустым", nameof(agentDvrUrl));
+            if (string.IsNullOrWhiteSpace(user))
+                throw new ArgumentException("user не может быть пустым", nameof(user));
+            if (string.IsNullOrWhiteSpace(password))
+                throw new ArgumentException("password не может быть пустым", nameof(password));
+            if (config == null)
+                throw new ArgumentNullException(nameof(config));
+            if (httpClient == null)
+                throw new ArgumentNullException(nameof(httpClient));
+
             this.agentDvrUrl = agentDvrUrl;
             agentUser = user;
             agentPass = password;
             this.logger = logger;
+            this.httpClient = httpClient;
 
-            IsForcedArmedAtNight = bool.Parse(config["ForcedArmedAtNight"] ?? "false");
-            IsForcedArmedAtDay = bool.Parse(config["ForcedArmedAtDay"] ?? "false");
+            IsForcedArmedAtNight = config.ForcedArmedAtNight;
+            IsForcedArmedAtDay = config.ForcedArmedAtDay;
 
             timeHelper = new TimeHelper(logger);
 
-            httpClient = new HttpClient();
-            agentDvrCredentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{agentUser}:{agentPass}"));
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", agentDvrCredentials);
-            _ = InitSystemState();
+            SetAuthorizationHeader();
             dailyScheduler = new DailyScheduler(ForcedArmedByTime);
         }
+
+        /// <summary>
+        /// Асинхронная инициализация состояния системы. Вызывать явно после создания объекта.
+        /// </summary>
+        public async Task InitializeAsync()
+        {
+            await InitSystemState();
+        }
+
+        // Старый конструктор для обратной совместимости (создаёт новый HttpClient)
+        public AgentDVR(string agentDvrUrl, string user, string password, Configs.CommonConfig config, ILogger? logger)
+            : this(agentDvrUrl, user, password, config, logger, new HttpClient())
+        {
+        }
+
+        /// <summary>
+        /// Устанавливает заголовок авторизации для httpClient.
+        /// </summary>
+        public void SetAuthorizationHeader()
+        {
+            agentDvrCredentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{agentUser}:{agentPass}"));
+            if (agentDvrCredentials != null)
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", agentDvrCredentials);
+        }
+
+        
 
         private async Task InitSystemState()
         {
             if (await GetSystemState())
                 logger?.LogInformation("AgentDVR: Система активна");
-            else logger?.LogInformation("AgentDVR: Система НЕ активна"); 
+            else logger?.LogInformation("AgentDVR: Система НЕ активна");
 
             if (await GetArmState())
                 logger?.LogInformation("AgentDVR: Защита активна");
-            else logger?.LogInformation("AgentDVR: Защита НЕ активна"); 
+            else logger?.LogInformation("AgentDVR: Защита НЕ активна");
         }
+        /// <summary>
+        /// Включает или отключает охрану.
+        /// </summary>
+        /// <param name="armed">true — включить охрану, false — отключить</param>
         public async Task SetArmState(bool armed)
         {
+            string endpoint = armed ? CommandArm : CommandDisarm;
+            var url = $"{agentDvrUrl}{endpoint}";
             try
             {
-                string command = armed ? "arm" : "disarm";
-                var response = await httpClient.GetAsync($"{agentDvrUrl}/command/{command}");
+                var response = await httpClient.GetAsync(url);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    logger?.LogError($"Ошибка изменения состояния охраны. URL: {url}, Status: {response.StatusCode}, Content: {content}");
+                }
                 response.EnsureSuccessStatusCode();
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "Ошибка изменения состояния охраны");
+                logger?.LogError(ex, $"Ошибка изменения состояния охраны. URL: {url}");
                 throw;
             }
         }
 
-        private async void ForcedArmedByTime(object state)
+        private async void ForcedArmedByTime(object? state)
         {
             var now = DateTime.Now;
             logger?.LogInformation($"{DateTime.Now.ToShortTimeString()}: Here is a tick in ForecedArmedByTime");
@@ -72,12 +141,9 @@ namespace CountryTelegramBot
             {
                 var isArmed = await GetArmState();
 
-                //Дневная c 8:00 по 23:00
-                var minDay = now.Date.Add(timeHelper.forcedArmedDayTime);
-                var maxDay = now.Date.Add(timeHelper.forcedArmedNightTime);
+                (DateTime minDay, DateTime maxDay) = GetDayInterval(now);
                 if (now.Hour >= minDay.Hour && now.Hour < maxDay.Hour)
                 {
-                    //logger?.LogInformation("Сейчас идет дневной цикл");
                     if (IsForcedArmedAtDay && !isArmed)
                     {
                         await SetArmState(true);
@@ -92,12 +158,9 @@ namespace CountryTelegramBot
                     }
                 }
 
-                //Ночная с 23:00 до 8:00 следующего дня
-                var minNight = now.Date.Add(timeHelper.forcedArmedNightTime);
-                var maxNight = now.Date.Add(timeHelper.forcedArmedDayTime).AddDays(1);
+                (DateTime minNight, DateTime maxNight) = GetNightInterval(now);
                 if (now.Hour >= minNight.Hour && now <= maxNight)
                 {
-                    //logger?.LogInformation("Сейчас идет ночной цикл");
                     if (IsForcedArmedAtNight && !isArmed)
                     {
                         await SetArmState(true);
@@ -111,57 +174,113 @@ namespace CountryTelegramBot
                         await SetArmState(false);
                     }
                 }
-
             }
         }
 
+        /// <summary>
+        /// Возвращает дневной временной интервал (minDay, maxDay) для текущей даты
+        /// </summary>
+        private (DateTime minDay, DateTime maxDay) GetDayInterval(DateTime now)
+        {
+            var minDay = now.Date.Add(timeHelper.forcedArmedDayTime);
+            var maxDay = now.Date.Add(timeHelper.forcedArmedNightTime);
+            return (minDay, maxDay);
+        }
+
+        /// <summary>
+        /// Возвращает ночной временной интервал (minNight, maxNight) для текущей даты
+        /// </summary>
+        private (DateTime minNight, DateTime maxNight) GetNightInterval(DateTime now)
+        {
+            var minNight = now.Date.Add(timeHelper.forcedArmedNightTime);
+            var maxNight = now.Date.Add(timeHelper.forcedArmedDayTime).AddDays(1);
+            return (minNight, maxNight);
+        }
+
+        /// <summary>
+        /// Перезагружает DVR через API.
+        /// </summary>
         public async Task RebootDVR()
         {
+            var url = $"{agentDvrUrl}{CommandRestart}";
             try
             {
-                var response = await httpClient.GetAsync($"{agentDvrUrl}/command/restart");
+                var response = await httpClient.GetAsync(url);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    logger?.LogError($"Ошибка перезагрузки DVR. URL: {url}, Status: {response.StatusCode}, Content: {content}");
+                }
                 response.EnsureSuccessStatusCode();
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "Ошибка изменения состояния охраны");
+                logger?.LogError(ex, $"Ошибка перезагрузки DVR. URL: {url}");
                 throw;
             }
         }
 
+        /// <summary>
+        /// Получает статус охраны (включена/выключена).
+        /// </summary>
+        /// <returns>true — охрана включена, false — выключена или ошибка</returns>
         public async Task<bool> GetArmState()
         {
+            var url = $"{agentDvrUrl}{CommandGetStatus}";
             try
             {
-                var response = await httpClient.GetAsync($"{agentDvrUrl}/command/getStatus");
-                response.EnsureSuccessStatusCode();
-
+                var response = await httpClient.GetAsync(url);
                 var content = await response.Content.ReadAsStringAsync();
+                if (!response.IsSuccessStatusCode)
+                {
+                    logger?.LogError($"Ошибка получения статуса охраны. URL: {url}, Status: {response.StatusCode}, Content: {content}");
+                    return false;
+                }
                 // Парсим ответ, ищем статус охраны
                 return content.Contains("\"armed\":true");
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "Ошибка получения статуса охраны");
+                logger?.LogError(ex, $"Ошибка получения статуса охраны. URL: {url}");
                 return false;
             }
         }
+        /// <summary>
+        /// Возвращает текстовое сообщение о статусе охраны для пользователя.
+        /// </summary>
+        /// <returns>Строка с иконкой и статусом</returns>
         public async Task<string> GetArmStateMessage()
         {
             var status = await GetArmState();
             return status ? "✅Охрана активна" : "⛔ Охрана неактивна";
         }
+        /// <summary>
+        /// Проверяет доступность системы DVR (пинг).
+        /// </summary>
+        /// <returns>true — система доступна, false — нет</returns>
         public async Task<bool> GetSystemState()
         {
-            var response = await httpClient.GetAsync($"{agentDvrUrl}/command/ping");
-            response.EnsureSuccessStatusCode();
-
-            var content = await response.Content.ReadAsStringAsync();
-
-            if (content.Trim() == "{\"status\":\"ok\"}")
+            var url = $"{agentDvrUrl}{CommandPing}";
+            try
             {
-                return true;
-            } else return false;
+                var response = await httpClient.GetAsync(url);
+                var content = await response.Content.ReadAsStringAsync();
+                if (!response.IsSuccessStatusCode)
+                {
+                    logger?.LogError($"Ошибка получения статуса системы. URL: {url}, Status: {response.StatusCode}, Content: {content}");
+                    return false;
+                }
+                if (content.Trim() == "{\"status\":\"ok\"}")
+                {
+                    return true;
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, $"Ошибка получения статуса системы. URL: {url}");
+                return false;
+            }
         }
     }
 }
