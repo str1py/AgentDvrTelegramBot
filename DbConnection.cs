@@ -3,57 +3,69 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CountryTelegramBot
 {
-    public class DbConnection : DbContext
-    {
-        public bool isConnected = false;
-        public DbCountryContext dbCountryContext;
-        private readonly ILogger? logger;
+    using CountryTelegramBot.Models;
 
-        public DbConnection(ILogger? logger, DbContextOptions<DbCountryContext> options)
+    public class DbConnection : DbContext, IDbConnection
+    {
+        public bool IsConnected { get; private set; } = false;
+        public DbCountryContext DbCountryContext { get; private set; }
+        private readonly ILogger? logger;
+        private readonly IErrorHandler? errorHandler;
+
+        public DbConnection(ILogger? logger, DbContextOptions<DbCountryContext> options, IErrorHandler? errorHandler = null)
         {
             this.logger = logger;
-
+            this.errorHandler = errorHandler;
             try
             {
-                dbCountryContext = new DbCountryContext(options);
-                isConnected = dbCountryContext.Database.CanConnect();
-                if (isConnected)
-                    logger?.LogInformation($"Connected to database seccussesfully!");
+                DbCountryContext = new DbCountryContext(options);
+                IsConnected = DbCountryContext.Database.CanConnect();
+                if (IsConnected)
+                    logger?.LogInformation($"Connected to database successfully! Connection string: {MaskSecret(options?.ToString())}");
                 else
                     logger?.LogError($"Connection error");
             }
             catch (Exception ex)
             {
                 logger?.LogError($"Connection error: {ex.Message}");
+                errorHandler?.HandleError(ex, "Ошибка подключения к базе данных");
             }
         }
 
+        private string MaskSecret(string? secret)
+        {
+            if (string.IsNullOrEmpty(secret)) return "[empty]";
+            if (secret.Length <= 8) return "********";
+            return secret.Substring(0, 4) + new string('*', secret.Length - 8) + secret.Substring(secret.Length - 4);
+        }
+        
+
         public async Task AddVideoData(string path, string grab)
         {
-            dbCountryContext.Video
+            DbCountryContext.Video
                 .Add(new VideoModel { Path = path, Grab = grab, Date = DateTime.Now });
-            await dbCountryContext.SaveChangesAsync();
+            await DbCountryContext.SaveChangesAsync();
         }
 
         public List<VideoModel> GetVideos(DateTime startDate, DateTime endDate)
         {
-            return dbCountryContext.Video
+            return DbCountryContext.Video
                 .AsNoTracking()
                 .Where(v => v.Date >= startDate && v.Date <= endDate)
                 .ToList();
         }
         public async Task<VideoModel> GetLastVideo()
         {
-            return await dbCountryContext.Video.AsNoTracking().OrderByDescending(v => v.Date).LastOrDefaultAsync();
+        return await DbCountryContext.Video.AsNoTracking().OrderByDescending(v => v.Date).LastOrDefaultAsync();
         }
 
         public async Task<bool> RemoveItemByPath(string path)
         {
-            var item = await dbCountryContext.Video.FirstOrDefaultAsync(x => x.Path == path);
+            var item = await DbCountryContext.Video.FirstOrDefaultAsync(x => x.Path == path);
             if (item != null)
             {
-                dbCountryContext.Remove(item);
-                await dbCountryContext.SaveChangesAsync();
+                DbCountryContext.Remove(item);
+                await DbCountryContext.SaveChangesAsync();
                 return true;
             }
             return false;

@@ -3,13 +3,17 @@ using Microsoft.Extensions.Logging;
 
 namespace CountryTelegramBot
 {
-    public class FileHelper
-    {
+    using CountryTelegramBot.Models;
 
+    public class FileHelper : IFileHelper
+    {
         private readonly ILogger? logger;
-        public FileHelper(ILogger? logger)
+        private readonly IErrorHandler? errorHandler;
+
+        public FileHelper(ILogger? logger, IErrorHandler? errorHandler = null)
         {
             this.logger = logger;
+            this.errorHandler = errorHandler;
         }
 
         public async Task<FileStream?> GetFileStreamFromVideo(string videoPath, int maxAttempts = 30, int delayMs = 1000)
@@ -27,29 +31,30 @@ namespace CountryTelegramBot
 
                     // Пытаемся открыть файл с эксклюзивным доступом
                     var fileStream = new FileStream(
-                    videoPath,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.ReadWrite, // Разрешаем другим читать, но не изменять
-                    bufferSize: 4096,
-                    useAsync: true);
+                        videoPath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.ReadWrite,
+                        bufferSize: 4096,
+                        useAsync: true);
 
-                    Console.WriteLine($"Файл доступен ({attempt}/{maxAttempts})");
+                    logger?.LogInformation($"Файл доступен ({attempt}/{maxAttempts})");
                     return fileStream;
                 }
                 catch (IOException ex) when (IsFileLocked(ex))
                 {
-                    Console.WriteLine($"Файл заблокирован, попытка {attempt}/{maxAttempts}");
-                    await Task.Delay(delayMs * attempt); // Прогрессивная задержка
+                    logger?.LogWarning($"Файл заблокирован, попытка {attempt}/{maxAttempts}");
+                    errorHandler?.HandleError(ex, $"File locked: {videoPath}");
+                    await Task.Delay(delayMs * attempt);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Ошибка: {ex.Message}");
+                    logger?.LogError(ex, $"Ошибка доступа к файлу: {videoPath}");
+                    errorHandler?.HandleError(ex, $"Ошибка доступа к файлу: {videoPath}");
                     return null;
                 }
-                Console.WriteLine($"Не удалось получить доступ к файлу после {maxAttempts} попыток");
-                return null;
             }
+            logger?.LogError($"Не удалось получить доступ к файлу после {maxAttempts} попыток: {videoPath}");
             return null;
         }
         public bool IsFileLocked(IOException ex)
@@ -63,6 +68,7 @@ namespace CountryTelegramBot
             if (!Directory.Exists(folder))
             {
                 logger?.LogWarning($"Папка не найдена: {folder}");
+                errorHandler?.HandleError(new DirectoryNotFoundException(folder), $"Папка не найдена: {folder}");
                 return null;
             }
             else

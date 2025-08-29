@@ -16,10 +16,10 @@ namespace CountryTelegramBot
         private readonly string agentUser;
         private readonly string agentPass;
         private readonly ILogger? logger;
-        private readonly bool IsForcedArmedAtNight;
-        private readonly bool IsForcedArmedAtDay;
-        private readonly TimeHelper timeHelper;
-        private readonly DailyScheduler dailyScheduler;
+    private readonly bool IsForcedArmedAtNight;
+    private readonly bool IsForcedArmedAtDay;
+    private readonly TimeHelper timeHelper;
+    private readonly DailyScheduler dailyScheduler;
         // Команды и endpoint'ы
         private const string CommandArm = "/command/arm";
         private const string CommandDisarm = "/command/disarm";
@@ -62,25 +62,46 @@ namespace CountryTelegramBot
             agentPass = password;
             this.logger = logger;
             this.httpClient = httpClient;
-
             IsForcedArmedAtNight = config.ForcedArmedAtNight;
             IsForcedArmedAtDay = config.ForcedArmedAtDay;
-
             timeHelper = new TimeHelper(logger);
-
             SetAuthorizationHeader();
             dailyScheduler = new DailyScheduler(ForcedArmedByTime);
+            LogAgentDvrCreated();
         }
-
+        private string MaskSecret(string secret)
+        {
+            if (string.IsNullOrEmpty(secret)) return "[empty]";
+            if (secret.Length <= 4) return "****";
+            return secret.Substring(0, 2) + new string('*', secret.Length - 4) + secret.Substring(secret.Length - 2);
+        }
         /// <summary>
         /// Асинхронная инициализация состояния системы. Вызывать явно после создания объекта.
         /// </summary>
         public async Task InitializeAsync()
         {
-            await InitSystemState();
+            try
+            {
+                await InitSystemState();
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Ошибка инициализации AgentDVR");
+            }
         }
 
         // Старый конструктор для обратной совместимости (создаёт новый HttpClient)
+        private void LogAgentDvrCreated()
+        {
+            logger?.LogInformation($"AgentDVR создан. URL: {agentDvrUrl}, User: {MaskSecret(agentUser)}");
+        }
+
+        private string MaskSecret(string secret)
+        {
+            if (string.IsNullOrEmpty(secret)) return "[empty]";
+            if (secret.Length <= 4) return "****";
+            return secret.Substring(0, 2) + new string('*', secret.Length - 4) + secret.Substring(secret.Length - 2);
+        }
         public AgentDVR(string agentDvrUrl, string user, string password, Configs.CommonConfig config, ILogger? logger)
             : this(agentDvrUrl, user, password, config, logger, new HttpClient())
         {
@@ -182,8 +203,8 @@ namespace CountryTelegramBot
         /// </summary>
         private (DateTime minDay, DateTime maxDay) GetDayInterval(DateTime now)
         {
-            var minDay = now.Date.Add(timeHelper.forcedArmedDayTime);
-            var maxDay = now.Date.Add(timeHelper.forcedArmedNightTime);
+            var minDay = now.Date.Add(timeHelper.ForcedArmedDayTime);
+            var maxDay = now.Date.Add(timeHelper.ForcedArmedNightTime);
             return (minDay, maxDay);
         }
 
@@ -192,8 +213,8 @@ namespace CountryTelegramBot
         /// </summary>
         private (DateTime minNight, DateTime maxNight) GetNightInterval(DateTime now)
         {
-            var minNight = now.Date.Add(timeHelper.forcedArmedNightTime);
-            var maxNight = now.Date.Add(timeHelper.forcedArmedDayTime).AddDays(1);
+            var minNight = now.Date.Add(timeHelper.ForcedArmedNightTime);
+            var maxNight = now.Date.Add(timeHelper.ForcedArmedDayTime).AddDays(1);
             return (minNight, maxNight);
         }
 

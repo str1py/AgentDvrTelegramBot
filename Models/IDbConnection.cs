@@ -1,0 +1,15 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+namespace CountryTelegramBot.Models
+{
+    public interface IDbConnection
+    {
+        Task AddVideoData(string path, string grab);
+        List<VideoModel> GetVideos(DateTime startDate, DateTime endDate);
+        Task<VideoModel> GetLastVideo();
+        Task<bool> RemoveItemByPath(string path);
+        bool IsConnected { get; }
+    }
+}

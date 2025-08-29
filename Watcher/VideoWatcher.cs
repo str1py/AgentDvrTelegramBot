@@ -5,7 +5,9 @@ using System.Reflection.Metadata;
 
 namespace CountryTelegramBot
 {
-    public class VideoWatcher
+    using CountryTelegramBot.Models;
+
+    public class VideoWatcher : IVideoWatcher, IDisposable
     {
 
         private enum WatcherType
@@ -21,9 +23,9 @@ namespace CountryTelegramBot
         private DbConnection dbConnection;
         private WatcherType watcherType;
         private bool disposed;
-        private readonly TimeHelper timeHelper;
-        private readonly FileHelper fileHelper;
-        private readonly DailyScheduler dailyScheduler;
+    private readonly ITimeHelper timeHelper;
+    private readonly IFileHelper fileHelper;
+    private readonly IDailyScheduler dailyScheduler;
 
 
 
@@ -32,7 +34,7 @@ namespace CountryTelegramBot
         {
             this.bot = bot ?? throw new ArgumentNullException(nameof(bot));
             this.logger = logger;
-            fileHelper = new FileHelper(logger);
+            this.fileHelper = new FileHelper(logger); // Для DI: передавать IFileHelper
             this.dbConnection = dbConnection;
 
             watcherType = GetWatcherType(config.WatcherType ?? "ASAP");
@@ -40,7 +42,7 @@ namespace CountryTelegramBot
             folders = watchFolders?.ToList() ?? new List<string>();
             watchers = new List<FileSystemWatcher>();
             this.timeHelper = timeHelper;
-            dailyScheduler = new DailyScheduler(SendVideo);
+            this.dailyScheduler = new DailyScheduler(SendVideo); // Для DI: передавать IDailyScheduler
 
             foreach (string folder in folders)
             {
@@ -58,7 +60,7 @@ namespace CountryTelegramBot
         {
             try
             {
-                await Task.Delay(20000); // Ждем, пока файл полностью запишется
+                await Task.Delay(20000); // Ждём, пока файл полностью запишется
                 logger?.LogInformation($"{e.ChangeType}: {e.FullPath}");
                 var path = e.FullPath;
                 var grabsPath = GetDirectoryFromFilePath(path);
@@ -81,8 +83,9 @@ namespace CountryTelegramBot
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "Ошибка при обработке нового видео");
+                logger?.LogError(ex, $"Ошибка обработки нового видеофайла: {e.FullPath}");
             }
+
         }
 
 
@@ -92,20 +95,17 @@ namespace CountryTelegramBot
             logger?.LogInformation($"{DateTime.Now.ToShortTimeString()}: Here is a tick in SendVideo");
             if (watcherType == WatcherType.Morning)
             {
-                if (now >= timeHelper.morningReport)
+                if (now >= timeHelper.MorningReport)
                 {
                     var vid = dbConnection.GetVideos(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
                     await bot.SendVideoGroupAsync(vid, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
                     timeHelper.CalculateNextNightPeriod();
                     timeHelper.CalculateNextMorningReport();
                 }
-                    
-                //logger?.LogInformation($"Следующий утренний отчет: {timeHelper.morningReport.ToShortDateString()} {timeHelper.morningReport.ToShortTimeString()}");
-                
             }
             else if (watcherType == WatcherType.MorningAndEvening)
             {
-                if (now >= timeHelper.eveningReport)
+                if (now >= timeHelper.EveningReport)
                 {
                     var vidNight = dbConnection.GetVideos(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
                     var vidDay = dbConnection.GetVideos(timeHelper.DayVideoStartDate, timeHelper.DayVideoEndDate);
@@ -118,8 +118,6 @@ namespace CountryTelegramBot
                     timeHelper.CalculateNextMorningReport();
                     timeHelper.CalculateNextEveningReport();
                 }
-                    //logger?.LogInformation($"Следующий утренний отчет: {timeHelper.morningReport.ToShortDateString()} {timeHelper.morningReport.ToShortTimeString()}");
-                    //logger?.LogInformation($"Следующий вечерний отчет: {timeHelper.eveningReport.ToShortDateString()} {timeHelper.eveningReport.ToShortTimeString()}");               
             }
         }
 

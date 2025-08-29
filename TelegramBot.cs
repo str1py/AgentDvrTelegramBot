@@ -30,16 +30,31 @@ namespace CountryTelegramBot
             fileHelper = new FileHelper(logger);
             cts = new CancellationTokenSource();
             bot = new TelegramBotClient(botToken, cancellationToken: cts.Token);
+            logger.LogInformation($"TelegramBot создан. Token: {MaskSecret(botToken)}, ChatId: {MaskSecret(chatId)}");
+
+        private string MaskSecret(string secret)
+        {
+            if (string.IsNullOrEmpty(secret)) return "[empty]";
+            if (secret.Length <= 4) return "****";
+            return secret.Substring(0, 2) + new string('*', secret.Length - 4) + secret.Substring(secret.Length - 2);
+        }
         }
         public async Task StartBot()
         {
-            bot.OnError += OnError;
-            bot.OnMessage += OnMessage;
-            bot.OnUpdate += OnUpdate;
-            var me = await bot.GetMe();
-            logger.LogInformation($"@{me.Username} is running...");
-            Console.ReadLine();
-            cts?.Cancel(); // stop the bot
+            try
+            {
+                bot.OnError += OnError;
+                bot.OnMessage += OnMessage;
+                bot.OnUpdate += OnUpdate;
+                var me = await bot.GetMe();
+                logger.LogInformation($"@{me.Username} is running...");
+                Console.ReadLine();
+                cts?.Cancel(); // stop the bot
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Ошибка запуска TelegramBot");
+            }
         }
 
         private async Task OnError(Exception exception, HandleErrorSource source)
@@ -49,29 +64,43 @@ namespace CountryTelegramBot
         }
         private async Task OnMessage(Message msg, UpdateType type)
         {
-            var me = await bot.GetMe();
-            logger.LogInformation($"Received text '{msg.Text}' in {msg.Chat}");
-            await OnCommand(msg.Text ?? string.Empty, msg); // null-safe
+            try
+            {
+                var me = await bot.GetMe();
+                logger.LogInformation($"Received text '{msg.Text}' in {msg.Chat}");
+                await OnCommand(msg.Text ?? string.Empty, msg); // null-safe
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Ошибка обработки сообщения TelegramBot");
+            }
         }
 
         private async Task OnCommand(string command, Message msg)
         {
-            var chatId = msg.Chat.Id;
-            logger.LogInformation($"Received command: {command}");
-            switch (command)
+            try
             {
-                case "/menu":
-                case "меню":
-                    await ShowUserMenu(chatId);
-                    break;
-                case "/adminmenu":
-                    await ShowMainMenu(chatId);
-                    break;
+                var chatId = msg.Chat.Id;
+                logger.LogInformation($"Received command: {command}");
+                switch (command)
+                {
+                    case "/menu":
+                    case "меню":
+                        await ShowUserMenu(chatId);
+                        break;
+                    case "/adminmenu":
+                        await ShowMainMenu(chatId);
+                        break;
 
-                default:
-                    await bot.SendMessage(chatId,
-                        "Доступные команды:\n menu - Включить охрану\n");
-                    break;
+                    default:
+                        await bot.SendMessage(chatId,
+                            "Доступные команды:\n menu - Включить охрану\n");
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, $"Ошибка обработки команды TelegramBot: {command}");
             }
         }
 
