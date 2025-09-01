@@ -7,8 +7,15 @@ using Microsoft.Extensions.Logging;
 
 namespace CountryTelegramBot
 {
-    public class TelegramBot : IDisposable
+    using CountryTelegramBot.Models;
+
+    public class TelegramBot : ITelegramBot, IDisposable
     {
+        // Реализация метода интерфейса ITelegramBot
+        public async Task SendMessage(long chatId, string text)
+        {
+            await bot.SendMessage(chatId, text);
+        }
         private TelegramBotClient bot;
         private CancellationTokenSource? cts;
 
@@ -32,13 +39,15 @@ namespace CountryTelegramBot
             bot = new TelegramBotClient(botToken, cancellationToken: cts.Token);
             logger.LogInformation($"TelegramBot создан. Token: {MaskSecret(botToken)}, ChatId: {MaskSecret(chatId)}");
 
+        }
+        
         private string MaskSecret(string secret)
         {
             if (string.IsNullOrEmpty(secret)) return "[empty]";
             if (secret.Length <= 4) return "****";
             return secret.Substring(0, 2) + new string('*', secret.Length - 4) + secret.Substring(secret.Length - 2);
         }
-        }
+        
         public async Task StartBot()
         {
             try
@@ -201,14 +210,14 @@ namespace CountryTelegramBot
         }
 
     
-        public async Task SendVideoSafely(string videoPath, string photoPath)
+    public async Task SendVideoSafely(string videoPath, string grabPath)
         {
             string message = "⚠️Обнаружено движение!";
 
             var videoStream = await fileHelper.GetFileStreamFromVideo(videoPath);
             if (videoStream != null)
             {
-                await using var photoStream = File.OpenRead(photoPath);
+                await using var photoStream = File.OpenRead(grabPath);
                 // Отправляем видео в Telegram
                 await bot.SendVideo(
                     chatId: chatId,
@@ -229,13 +238,14 @@ namespace CountryTelegramBot
             }
         }
 
-        public async Task SendVideoGroupAsync(List<VideoModel> video, DateTime startDate, DateTime endDate)
+        public async Task SendVideoGroupAsync(IEnumerable<VideoModel> videos, DateTime start, DateTime end)
         {
-            if (video.Count() == 0)
+            var videoList = videos.ToList();
+            if (videoList.Count == 0)
             {
                 await bot.SendMessage(
                     chatId: chatId,
-                    text: $"Тревог не зафиксировано с {startDate.ToShortDateString()} {startDate.ToShortTimeString()} по {endDate.ToShortDateString()} {endDate.ToShortTimeString()}",
+                    text: $"Тревог не зафиксировано с {start.ToShortDateString()} {start.ToShortTimeString()} по {end.ToShortDateString()} {end.ToShortTimeString()}",
                     parseMode: ParseMode.Html
                 );
             }
@@ -243,12 +253,12 @@ namespace CountryTelegramBot
             {
                 await bot.SendMessage(
                         chatId: chatId,
-                        text: $"Отправляю отчет за период с {startDate.ToShortDateString()} {startDate.ToShortTimeString()} по {endDate.ToShortDateString()} {endDate.ToShortTimeString()}",
+                        text: $"Отправляю отчет за период с {start.ToShortDateString()} {start.ToShortTimeString()} по {end.ToShortDateString()} {end.ToShortTimeString()}",
                         parseMode: ParseMode.Html
                     );
 
                 const int maxGroupSize = 10;
-                var groups = video
+                var groups = videoList
                     .Select((path, index) => new { path, index })
                     .GroupBy(x => x.index / maxGroupSize, x => x.path);
 
@@ -258,32 +268,25 @@ namespace CountryTelegramBot
                     try
                     {
                         alreadeSendedVideos += group.Count();
-                        logger?.LogInformation($"Начинаю отправку {alreadeSendedVideos}/{video.Count()} видео");
+                        logger?.LogInformation($"Начинаю отправку {alreadeSendedVideos}/{videoList.Count} видео");
                         var media = new List<IAlbumInputMedia>();
                         foreach (var vid in group)
                         {
-                            // Открываем каждый файл видео
-                            var videoStream = await fileHelper.GetFileStreamFromVideo(vid.Path);
-                            if (videoStream != null)
+                            if (vid?.Path != null)
                             {
-                                // Создаем медиа-объект для альбома
-                                media.Add(new InputMediaVideo(
-                                    media: InputFile.FromStream(videoStream, Path.GetFileName(vid.Path))
-                                ));
-                            }
-                            else
-                            {
-                                if (await dbConnection.RemoveItemByPath(vid.Path))
-                                    logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
+                                var videoStream = await fileHelper.GetFileStreamFromVideo(vid.Path);
+                                if (videoStream != null)
+                                {
+                                    media.Add(new InputMediaVideo(InputFile.FromStream(videoStream, Path.GetFileName(vid.Path))));
+                                }
+                                else
+                                {
+                                    if (await dbConnection.RemoveItemByPath(vid.Path))
+                                        logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
+                                }
                             }
                         }
-
-                        // Отправляем группу видео
-                        await bot.SendMediaGroup(
-                            chatId: chatId,
-                            media: media
-                        );
-                       
+                        await bot.SendMediaGroup(chatId, media);
                     }
                     catch (Exception ex)
                     {

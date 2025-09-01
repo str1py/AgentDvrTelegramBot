@@ -7,6 +7,23 @@ namespace CountryTelegramBot
 
     public class DbConnection : DbContext, IDbConnection
     {
+        /// <summary>
+        /// Проверяет целостность данных: возвращает список записей, для которых отсутствует файл по указанному пути.
+        /// </summary>
+        public List<VideoModel> GetBrokenVideos()
+        {
+            var broken = new List<VideoModel>();
+            var allVideos = DbCountryContext.Video.AsNoTracking().ToList();
+            foreach (var video in allVideos)
+            {
+                if (!System.IO.File.Exists(video.Path))
+                {
+                    broken.Add(video);
+                }
+            }
+            return broken;
+        }
+    
         public bool IsConnected { get; private set; } = false;
         public DbCountryContext DbCountryContext { get; private set; }
         private readonly ILogger? logger;
@@ -24,12 +41,29 @@ namespace CountryTelegramBot
                     logger?.LogInformation($"Connected to database successfully! Connection string: {MaskSecret(options?.ToString())}");
                 else
                     logger?.LogError($"Connection error");
+                // Автоматическое удаление битых записей при запуске
+                RemoveBrokenVideos();
             }
             catch (Exception ex)
             {
                 logger?.LogError($"Connection error: {ex.Message}");
                 errorHandler?.HandleError(ex, "Ошибка подключения к базе данных");
             }
+        }
+
+        /// <summary>
+        /// Удаляет битые записи (файлы, которых нет на диске) из базы данных
+        /// </summary>
+        private void RemoveBrokenVideos()
+        {
+            var broken = GetBrokenVideos();
+            if (broken.Count > 0)
+            {
+                DbCountryContext.Video.RemoveRange(broken);
+                DbCountryContext.SaveChanges();
+                logger?.LogWarning($"Удалено {broken.Count} битых записей из базы данных.");
+            }
+        }
         }
 
         private string MaskSecret(string? secret)
@@ -54,9 +88,11 @@ namespace CountryTelegramBot
                 .Where(v => v.Date >= startDate && v.Date <= endDate)
                 .ToList();
         }
-        public async Task<VideoModel> GetLastVideo()
+       
+        public async Task<VideoModel?> GetLastVideo()
         {
-        return await DbCountryContext.Video.AsNoTracking().OrderByDescending(v => v.Date).LastOrDefaultAsync();
+            var result = await DbCountryContext.Video.AsNoTracking().OrderByDescending(v => v.Date).FirstOrDefaultAsync();
+            return result;
         }
 
         public async Task<bool> RemoveItemByPath(string path)

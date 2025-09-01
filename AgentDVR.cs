@@ -96,12 +96,6 @@ namespace CountryTelegramBot
             logger?.LogInformation($"AgentDVR создан. URL: {agentDvrUrl}, User: {MaskSecret(agentUser)}");
         }
 
-        private string MaskSecret(string secret)
-        {
-            if (string.IsNullOrEmpty(secret)) return "[empty]";
-            if (secret.Length <= 4) return "****";
-            return secret.Substring(0, 2) + new string('*', secret.Length - 4) + secret.Substring(secret.Length - 2);
-        }
         public AgentDVR(string agentDvrUrl, string user, string password, Configs.CommonConfig config, ILogger? logger)
             : this(agentDvrUrl, user, password, config, logger, new HttpClient())
         {

@@ -9,6 +9,23 @@ namespace CountryTelegramBot
 
     public class VideoWatcher : IVideoWatcher, IDisposable
     {
+        public void StartWatching()
+        {
+            foreach (var watcher in watchers)
+            {
+                watcher.EnableRaisingEvents = true;
+            }
+            logger?.LogInformation("Watching started.");
+        }
+
+        public void StopWatching()
+        {
+            foreach (var watcher in watchers)
+            {
+                watcher.EnableRaisingEvents = false;
+            }
+            logger?.LogInformation("Watching stopped.");
+        }
 
         private enum WatcherType
         {
@@ -18,11 +35,11 @@ namespace CountryTelegramBot
         }
         private readonly List<string> folders;
         private readonly List<FileSystemWatcher> watchers;
-        private readonly TelegramBot bot;
-        private readonly ILogger? logger;
-        private DbConnection dbConnection;
-        private WatcherType watcherType;
-        private bool disposed;
+    private readonly ITelegramBot bot;
+    private readonly ILogger? logger;
+    private readonly IDbConnection dbConnection;
+    private WatcherType watcherType;
+    private bool disposed;
     private readonly ITimeHelper timeHelper;
     private readonly IFileHelper fileHelper;
     private readonly IDailyScheduler dailyScheduler;
@@ -34,29 +51,29 @@ namespace CountryTelegramBot
         {
             this.bot = bot ?? throw new ArgumentNullException(nameof(bot));
             this.logger = logger;
-            this.fileHelper = new FileHelper(logger); // Для DI: передавать IFileHelper
-            this.dbConnection = dbConnection;
+            this.fileHelper = fileHelper ?? throw new ArgumentNullException(nameof(fileHelper));
+            this.dbConnection = dbConnection ?? throw new ArgumentNullException(nameof(dbConnection));
+            this.timeHelper = timeHelper ?? throw new ArgumentNullException(nameof(timeHelper));
+            this.dailyScheduler = dailyScheduler ?? throw new ArgumentNullException(nameof(dailyScheduler));
 
             watcherType = GetWatcherType(config.WatcherType ?? "ASAP");
 
             folders = watchFolders?.ToList() ?? new List<string>();
             watchers = new List<FileSystemWatcher>();
-            this.timeHelper = timeHelper;
-            this.dailyScheduler = new DailyScheduler(SendVideo); // Для DI: передавать IDailyScheduler
 
             foreach (string folder in folders)
             {
                 var watcher = fileHelper.CreateFolderWatcher(folder);
                 if (watcher != null)
                 {
-                    watcher.Created += OnNewVideo;
+                    watcher.Created += async (s, e) => await OnNewVideo(s, e);
                     watchers.Add(watcher);
                     logger?.LogInformation($"Мониторю {folder}...");
                 }
             }
         }
 
-        private async void OnNewVideo(object sender, FileSystemEventArgs e)
+    private async Task OnNewVideo(object sender, FileSystemEventArgs e)
         {
             try
             {
@@ -89,7 +106,7 @@ namespace CountryTelegramBot
         }
 
 
-        private async void SendVideo(object? state)
+    private void SendVideo(object? state)
         {
             var now = DateTime.Now;
             logger?.LogInformation($"{DateTime.Now.ToShortTimeString()}: Here is a tick in SendVideo");
@@ -98,7 +115,7 @@ namespace CountryTelegramBot
                 if (now >= timeHelper.MorningReport)
                 {
                     var vid = dbConnection.GetVideos(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
-                    await bot.SendVideoGroupAsync(vid, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
+                    bot.SendVideoGroupAsync(vid, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate).Wait();
                     timeHelper.CalculateNextNightPeriod();
                     timeHelper.CalculateNextMorningReport();
                 }
@@ -110,8 +127,8 @@ namespace CountryTelegramBot
                     var vidNight = dbConnection.GetVideos(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
                     var vidDay = dbConnection.GetVideos(timeHelper.DayVideoStartDate, timeHelper.DayVideoEndDate);
 
-                    await bot.SendVideoGroupAsync(vidDay, timeHelper.DayVideoStartDate, timeHelper.DayVideoEndDate);
-                    await bot.SendVideoGroupAsync(vidNight, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
+                    bot.SendVideoGroupAsync(vidDay, timeHelper.DayVideoStartDate, timeHelper.DayVideoEndDate).Wait();
+                    bot.SendVideoGroupAsync(vidNight, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate).Wait();
 
                     timeHelper.CalculateNextDayPeriod();
                     timeHelper.CalculateNextNightPeriod();
@@ -196,7 +213,7 @@ namespace CountryTelegramBot
             foreach (var watcher in watchers)
             {
                 watcher.EnableRaisingEvents = false;
-                watcher.Created -= OnNewVideo;
+                watcher.Created -= async (s, e) => await OnNewVideo(s, e);;
                 watcher.Dispose();
             }
             disposed = true;
