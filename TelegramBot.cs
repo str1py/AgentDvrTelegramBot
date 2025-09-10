@@ -40,14 +40,14 @@ namespace CountryTelegramBot
             logger.LogInformation($"TelegramBot создан. Token: {MaskSecret(botToken)}, ChatId: {MaskSecret(chatId)}");
 
         }
-        
+
         private string MaskSecret(string secret)
         {
             if (string.IsNullOrEmpty(secret)) return "[empty]";
             if (secret.Length <= 4) return "****";
             return secret.Substring(0, 2) + new string('*', secret.Length - 4) + secret.Substring(secret.Length - 2);
         }
-        
+
         public async Task StartBot()
         {
             try
@@ -184,15 +184,15 @@ namespace CountryTelegramBot
                     new [] {
                     InlineKeyboardButton.WithCallbackData("🔒 Включить охрану","1.1")
                     },
-                }); 
+                });
             }
         }
         private async Task ShowMainMenu(long chatId)
         {
-             await bot.SendMessage(
-                chatId,
-                $"{await agent.GetArmStateMessage()}\nВыберите действие:",
-                replyMarkup: GetMainMenuKeyboard());
+            await bot.SendMessage(
+               chatId,
+               $"{await agent.GetArmStateMessage()}\nВыберите действие:",
+               replyMarkup: GetMainMenuKeyboard());
         }
 
         private async Task ShowUserMenu(long chatId)
@@ -209,8 +209,8 @@ namespace CountryTelegramBot
             await bot.SendMessage(callbackQuery.Message!.Chat, $"Received callback from inline button {callbackQuery.Data}");
         }
 
-    
-    public async Task SendVideoSafely(string videoPath, string grabPath)
+
+        public async Task SendVideoSafely(string videoPath, string grabPath)
         {
             string message = "⚠️Обнаружено движение!";
 

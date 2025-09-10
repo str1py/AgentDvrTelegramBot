@@ -64,7 +64,6 @@ namespace CountryTelegramBot
                 logger?.LogWarning($"Удалено {broken.Count} битых записей из базы данных.");
             }
         }
-        }
 
         private string MaskSecret(string? secret)
         {

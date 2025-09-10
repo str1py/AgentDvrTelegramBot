@@ -35,14 +35,14 @@ namespace CountryTelegramBot
         }
         private readonly List<string> folders;
         private readonly List<FileSystemWatcher> watchers;
-    private readonly ITelegramBot bot;
-    private readonly ILogger? logger;
-    private readonly IDbConnection dbConnection;
-    private WatcherType watcherType;
-    private bool disposed;
-    private readonly ITimeHelper timeHelper;
-    private readonly IFileHelper fileHelper;
-    private readonly IDailyScheduler dailyScheduler;
+        private readonly ITelegramBot bot;
+        private readonly ILogger? logger;
+        private readonly IDbConnection dbConnection;
+        private WatcherType watcherType;
+        private bool disposed;
+        private readonly ITimeHelper timeHelper;
+        private readonly IFileHelper fileHelper;
+        private readonly IDailyScheduler dailyScheduler;
 
 
 
@@ -54,7 +54,7 @@ namespace CountryTelegramBot
             this.fileHelper = fileHelper ?? throw new ArgumentNullException(nameof(fileHelper));
             this.dbConnection = dbConnection ?? throw new ArgumentNullException(nameof(dbConnection));
             this.timeHelper = timeHelper ?? throw new ArgumentNullException(nameof(timeHelper));
-            this.dailyScheduler = dailyScheduler ?? throw new ArgumentNullException(nameof(dailyScheduler));
+       
 
             watcherType = GetWatcherType(config.WatcherType ?? "ASAP");
 
@@ -71,9 +71,11 @@ namespace CountryTelegramBot
                     logger?.LogInformation($"Мониторю {folder}...");
                 }
             }
+            StartWatching();
+            dailyScheduler = new DailyScheduler(SendVideo);
         }
 
-    private async Task OnNewVideo(object sender, FileSystemEventArgs e)
+        private async Task OnNewVideo(object sender, FileSystemEventArgs e)
         {
             try
             {
@@ -106,7 +108,7 @@ namespace CountryTelegramBot
         }
 
 
-    private void SendVideo(object? state)
+        private void SendVideo(object? state)
         {
             var now = DateTime.Now;
             logger?.LogInformation($"{DateTime.Now.ToShortTimeString()}: Here is a tick in SendVideo");
@@ -213,7 +215,7 @@ namespace CountryTelegramBot
             foreach (var watcher in watchers)
             {
                 watcher.EnableRaisingEvents = false;
-                watcher.Created -= async (s, e) => await OnNewVideo(s, e);;
+                watcher.Created -= async (s, e) => await OnNewVideo(s, e); ;
                 watcher.Dispose();
             }
             disposed = true;
