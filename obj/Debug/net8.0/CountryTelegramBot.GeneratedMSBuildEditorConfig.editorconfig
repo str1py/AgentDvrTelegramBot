@@ -9,7 +9,11 @@ build_property.EnforceExtendedAnalyzerRules =
 build_property._SupportedPlatformList = Linux,macOS,Windows
 build_property.RootNamespace = CountryTelegramBot
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 build_property.ProjectDir = C:\Users\rdp.wonderland-ch\Desktop\AgentDvrTelegramBot\
+=======
+build_property.ProjectDir = C:\Users\Mi\Desktop\AgentDvrTelegramBot\
+>>>>>>> Stashed changes
 =======
 build_property.ProjectDir = C:\Users\Mi\Desktop\AgentDvrTelegramBot\
 >>>>>>> Stashed changes

@@ -10,9 +10,13 @@ using CountryTelegramBot.Services;
 namespace CountryTelegramBot
 {
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     using CountryTelegramBot.Models;
 
     public class TelegramBot : ITelegramBot, IDisposable
+=======
+    public class TelegramBot : ITelegramBotService, IDisposable
+>>>>>>> Stashed changes
 =======
     public class TelegramBot : ITelegramBotService, IDisposable
 >>>>>>> Stashed changes

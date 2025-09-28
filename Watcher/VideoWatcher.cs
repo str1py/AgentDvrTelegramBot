@@ -38,9 +38,15 @@ namespace CountryTelegramBot
         private readonly List<string> folders;
         private readonly List<FileSystemWatcher> watchers;
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         private readonly ITelegramBot bot;
         private readonly ILogger? logger;
         private readonly IDbConnection dbConnection;
+=======
+        private readonly ITelegramBotService bot;
+        private readonly ILogger<VideoWatcher>? logger;
+        private IVideoRepository videoRepository;
+>>>>>>> Stashed changes
 =======
         private readonly ITelegramBotService bot;
         private readonly ILogger<VideoWatcher>? logger;
@@ -61,9 +67,13 @@ namespace CountryTelegramBot
             this.logger = logger;
             this.fileHelper = fileHelper ?? throw new ArgumentNullException(nameof(fileHelper));
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             this.dbConnection = dbConnection ?? throw new ArgumentNullException(nameof(dbConnection));
             this.timeHelper = timeHelper ?? throw new ArgumentNullException(nameof(timeHelper));
        
+=======
+            this.videoRepository = videoRepository ?? throw new ArgumentNullException(nameof(videoRepository));
+>>>>>>> Stashed changes
 =======
             this.videoRepository = videoRepository ?? throw new ArgumentNullException(nameof(videoRepository));
 >>>>>>> Stashed changes
@@ -129,9 +139,12 @@ namespace CountryTelegramBot
                 if (now >= timeHelper.MorningReport)
                 {
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                     var vid = dbConnection.GetVideos(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
                     bot.SendVideoGroupAsync(vid, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate).Wait();
 =======
+=======
+>>>>>>> Stashed changes
                     var vid = await videoRepository.GetVideosAsync(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
                     await bot.SendVideoGroupAsync(vid, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
 >>>>>>> Stashed changes

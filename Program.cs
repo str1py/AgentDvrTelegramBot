@@ -15,6 +15,7 @@ internal class Program
     public static async Task Main(string[] args)
     {
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         try
         {
             var config = BuildConfiguration();
@@ -28,6 +29,8 @@ internal class Program
             var telegramBot = serviceProvider.GetRequiredService<TelegramBot>();
 
 =======
+=======
+>>>>>>> Stashed changes
         var host = CreateHostBuilder(args).Build();
         
         try
@@ -59,11 +62,15 @@ internal class Program
             
             // Запускаем Telegram Bot
             var telegramBot = scope.ServiceProvider.GetRequiredService<TelegramBot>();
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
             await telegramBot.StartBot();
         }
         catch (Exception ex)
         {
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
             Console.WriteLine($"[FATAL] {ex.Message}\n{ex.StackTrace}");
             // Можно добавить логирование в файл или отправку уведомления админу
@@ -140,6 +147,14 @@ internal class Program
         }
     }
 
+=======
+            var logger = host.Services.GetService<ILogger<Program>>();
+            logger?.LogError(ex, "Критическая ошибка при запуске приложения");
+            throw;
+        }
+    }
+
+>>>>>>> Stashed changes
     private static IHostBuilder CreateHostBuilder(string[] args) =>
         Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((context, config) =>
