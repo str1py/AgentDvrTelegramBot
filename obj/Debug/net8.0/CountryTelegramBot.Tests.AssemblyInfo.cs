@@ -10,16 +10,12 @@
 using System;
 using System.Reflection;
 
-[assembly: System.Reflection.AssemblyCompanyAttribute("CountryTelegramBot")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("CountryTelegramBot.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-<<<<<<< Updated upstream
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b54618dcaedae41ae8c54172e8326cc4addbe558")]
-=======
 [assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7c1bd6cbb40ad275ecc44a8571aba8ed94b6fbb7")]
->>>>>>> Stashed changes
-[assembly: System.Reflection.AssemblyProductAttribute("CountryTelegramBot")]
-[assembly: System.Reflection.AssemblyTitleAttribute("CountryTelegramBot")]
+[assembly: System.Reflection.AssemblyProductAttribute("CountryTelegramBot.Tests")]
+[assembly: System.Reflection.AssemblyTitleAttribute("CountryTelegramBot.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
 
 // Создано классом WriteCodeFragment MSBuild.

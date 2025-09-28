@@ -7,11 +7,9 @@ build_property.InvariantGlobalization =
 build_property.PlatformNeutralAssembly = 
 build_property.EnforceExtendedAnalyzerRules = 
 build_property._SupportedPlatformList = Linux,macOS,Windows
-build_property.RootNamespace = CountryTelegramBot
-<<<<<<< Updated upstream
-build_property.ProjectDir = C:\Users\rdp.wonderland-ch\Desktop\AgentDvrTelegramBot\
-=======
+build_property.RootNamespace = CountryTelegramBot.Tests
 build_property.ProjectDir = C:\Users\Mi\Desktop\AgentDvrTelegramBot\
->>>>>>> Stashed changes
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 
+build_property.EffectiveAnalysisLevelStyle = 8.0
+build_property.EnableCodeStyleSeverity = 

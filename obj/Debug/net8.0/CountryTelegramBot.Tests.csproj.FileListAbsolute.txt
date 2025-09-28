@@ -1,0 +1,6 @@
+C:\Users\Mi\Desktop\AgentDvrTelegramBot\obj\Debug\net8.0\CountryTelegramBot.Tests.csproj.AssemblyReference.cache
+C:\Users\Mi\Desktop\AgentDvrTelegramBot\obj\Debug\net8.0\CountryTelegramBot.Tests.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Mi\Desktop\AgentDvrTelegramBot\obj\Debug\net8.0\CountryTelegramBot.Tests.AssemblyInfoInputs.cache
+C:\Users\Mi\Desktop\AgentDvrTelegramBot\obj\Debug\net8.0\CountryTelegramBot.Tests.AssemblyInfo.cs
+C:\Users\Mi\Desktop\AgentDvrTelegramBot\obj\Debug\net8.0\CountryTelegramBot.Tests.csproj.CoreCompileInputs.cache
+C:\Users\Mi\Desktop\AgentDvrTelegramBot\obj\Debug\net8.0\CountryTelegramBot.Tests.sourcelink.json

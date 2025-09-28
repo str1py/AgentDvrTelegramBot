@@ -2,6 +2,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Data;
 using System.Reflection.Metadata;
+using CountryTelegramBot.Repositories;
+using CountryTelegramBot.Services;
 
 namespace CountryTelegramBot
 {
@@ -35,9 +37,15 @@ namespace CountryTelegramBot
         }
         private readonly List<string> folders;
         private readonly List<FileSystemWatcher> watchers;
+<<<<<<< Updated upstream
         private readonly ITelegramBot bot;
         private readonly ILogger? logger;
         private readonly IDbConnection dbConnection;
+=======
+        private readonly ITelegramBotService bot;
+        private readonly ILogger<VideoWatcher>? logger;
+        private IVideoRepository videoRepository;
+>>>>>>> Stashed changes
         private WatcherType watcherType;
         private bool disposed;
         private readonly ITimeHelper timeHelper;
@@ -46,15 +54,19 @@ namespace CountryTelegramBot
 
 
 
-        public VideoWatcher(TelegramBot bot, DbConnection dbConnection, CountryTelegramBot.Configs.CommonConfig config, TimeHelper timeHelper, IEnumerable<string>? watchFolders = null,
-        ILogger? logger = null)
+        public VideoWatcher(ITelegramBotService bot, IVideoRepository videoRepository, CountryTelegramBot.Configs.CommonConfig config, TimeHelper timeHelper, FileHelper fileHelper, IEnumerable<string>? watchFolders = null,
+        ILogger<VideoWatcher>? logger = null)
         {
             this.bot = bot ?? throw new ArgumentNullException(nameof(bot));
             this.logger = logger;
             this.fileHelper = fileHelper ?? throw new ArgumentNullException(nameof(fileHelper));
+<<<<<<< Updated upstream
             this.dbConnection = dbConnection ?? throw new ArgumentNullException(nameof(dbConnection));
             this.timeHelper = timeHelper ?? throw new ArgumentNullException(nameof(timeHelper));
        
+=======
+            this.videoRepository = videoRepository ?? throw new ArgumentNullException(nameof(videoRepository));
+>>>>>>> Stashed changes
 
             watcherType = GetWatcherType(config.WatcherType ?? "ASAP");
 
@@ -90,12 +102,12 @@ namespace CountryTelegramBot
                     return;
                 }
 
-                await dbConnection.AddVideoData(path, grab);
+                await videoRepository.AddVideoAsync(path, grab);
                 logger?.LogInformation($"В базу данных добавлена новая запись ({Path.GetFileName(path)})");
 
                 if (watcherType == WatcherType.ASAP)
                 {
-                    var video = await dbConnection.GetLastVideo();
+                    var video = await videoRepository.GetLastVideoAsync();
                     if (video is not null)
                         await bot.SendVideoSafely(video?.Path ?? "empty", video?.Grab ?? "empty");
                 }
@@ -116,8 +128,13 @@ namespace CountryTelegramBot
             {
                 if (now >= timeHelper.MorningReport)
                 {
+<<<<<<< Updated upstream
                     var vid = dbConnection.GetVideos(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
                     bot.SendVideoGroupAsync(vid, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate).Wait();
+=======
+                    var vid = await videoRepository.GetVideosAsync(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
+                    await bot.SendVideoGroupAsync(vid, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
+>>>>>>> Stashed changes
                     timeHelper.CalculateNextNightPeriod();
                     timeHelper.CalculateNextMorningReport();
                 }
@@ -126,8 +143,8 @@ namespace CountryTelegramBot
             {
                 if (now >= timeHelper.EveningReport)
                 {
-                    var vidNight = dbConnection.GetVideos(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
-                    var vidDay = dbConnection.GetVideos(timeHelper.DayVideoStartDate, timeHelper.DayVideoEndDate);
+                    var vidNight = await videoRepository.GetVideosAsync(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
+                    var vidDay = await videoRepository.GetVideosAsync(timeHelper.DayVideoStartDate, timeHelper.DayVideoEndDate);
 
                     bot.SendVideoGroupAsync(vidDay, timeHelper.DayVideoStartDate, timeHelper.DayVideoEndDate).Wait();
                     bot.SendVideoGroupAsync(vidNight, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate).Wait();

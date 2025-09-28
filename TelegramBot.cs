@@ -1,15 +1,21 @@
-﻿using Telegram.Bot;
+﻿﻿﻿﻿﻿﻿﻿using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 using Microsoft.Extensions.Logging;
+using CountryTelegramBot.Repositories;
+using CountryTelegramBot.Services;
 
 namespace CountryTelegramBot
 {
+<<<<<<< Updated upstream
     using CountryTelegramBot.Models;
 
     public class TelegramBot : ITelegramBot, IDisposable
+=======
+    public class TelegramBot : ITelegramBotService, IDisposable
+>>>>>>> Stashed changes
     {
         // Реализация метода интерфейса ITelegramBot
         public async Task SendMessage(long chatId, string text)
@@ -23,18 +29,18 @@ namespace CountryTelegramBot
         private string chatId;
         private AgentDVR agent;
         private bool disposed;
-        private readonly ILogger logger;
+        private readonly ILogger<TelegramBot> logger;
         private FileHelper fileHelper;
-        private DbConnection dbConnection;
+        private IVideoRepository videoRepository;
 
-        public TelegramBot(string botToken, string chatId, AgentDVR agent, DbConnection dbConnection, ILogger logger)
+        public TelegramBot(string botToken, string chatId, AgentDVR agent, IVideoRepository videoRepository, FileHelper fileHelper, ILogger<TelegramBot> logger)
         {
-            this.botToken = botToken;
-            this.chatId = chatId;
-            this.logger = logger;
-            this.dbConnection = dbConnection;
-            this.agent = agent;
-            fileHelper = new FileHelper(logger);
+            this.botToken = botToken ?? throw new ArgumentNullException(nameof(botToken));
+            this.chatId = chatId ?? throw new ArgumentNullException(nameof(chatId));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            this.videoRepository = videoRepository ?? throw new ArgumentNullException(nameof(videoRepository));
+            this.agent = agent ?? throw new ArgumentNullException(nameof(agent));
+            this.fileHelper = fileHelper ?? throw new ArgumentNullException(nameof(fileHelper));
             cts = new CancellationTokenSource();
             bot = new TelegramBotClient(botToken, cancellationToken: cts.Token);
             logger.LogInformation($"TelegramBot создан. Token: {MaskSecret(botToken)}, ChatId: {MaskSecret(chatId)}");
@@ -233,7 +239,7 @@ namespace CountryTelegramBot
             }
             else
             {
-                if (await dbConnection.RemoveItemByPath(videoPath))
+                if (await videoRepository.RemoveByPathAsync(videoPath))
                     logger?.LogWarning($"Данные удалены из базы данных: {videoPath}");
             }
         }
@@ -274,6 +280,7 @@ namespace CountryTelegramBot
                         {
                             if (vid?.Path != null)
                             {
+<<<<<<< Updated upstream
                                 var videoStream = await fileHelper.GetFileStreamFromVideo(vid.Path);
                                 if (videoStream != null)
                                 {
@@ -284,6 +291,17 @@ namespace CountryTelegramBot
                                     if (await dbConnection.RemoveItemByPath(vid.Path))
                                         logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
                                 }
+=======
+                                // Создаем медиа-объект для альбома
+                                media.Add(new InputMediaVideo(
+                                    media: InputFile.FromStream(videoStream, Path.GetFileName(vid.Path))
+                                ));
+                            }
+                            else
+                            {
+                                if (await videoRepository.RemoveByPathAsync(vid.Path))
+                                    logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
+>>>>>>> Stashed changes
                             }
                         }
                         await bot.SendMediaGroup(chatId, media);
