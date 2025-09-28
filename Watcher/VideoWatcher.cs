@@ -97,8 +97,10 @@ namespace CountryTelegramBot
                 logger?.LogInformation($"{e.ChangeType}: {e.FullPath}");
                 var path = e.FullPath;
                 
-                // Ищем превью-изображение в той же папке
-                var folderPath = Path.GetDirectoryName(path);
+                // Ищем превью-изображение в той же папке или в подпапке grabs
+                var _path = Path.GetDirectoryName(e.FullPath);
+                var folderPath = Path.Combine(_path, "grabs");
+                logger?.LogInformation($"Путь к grabs скомбинирован {folderPath}");
                 var grab = GetLastGrab(folderPath);
                 
                 if (grab == null)
@@ -107,14 +109,30 @@ namespace CountryTelegramBot
                     // Продолжаем выполнение даже без превью
                 }
 
-                await videoRepository.AddVideoAsync(path, grab ?? string.Empty);
-                logger?.LogInformation($"В базу данных добавлена новая запись ({Path.GetFileName(path)})");
+                // Пытаемся добавить запись в базу данных
+                try
+                {
+                    // If no grab image is found, use an empty string instead of null
+                    await videoRepository.AddVideoAsync(path, grab ?? string.Empty);
+                    logger?.LogInformation($"В базу данных добавлена новая запись ({Path.GetFileName(path)})");
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, $"Не удалось добавить запись в базу данных: {path}");
+                }
 
                 if (watcherType == WatcherType.ASAP && grab != null)
                 {
-                    var video = await videoRepository.GetLastVideoAsync();
-                    if (video is not null)
-                        await bot.SendVideoSafely(video.Path ?? "empty", video.Grab ?? "empty");
+                    try
+                    {
+                        var video = await videoRepository.GetLastVideoAsync();
+                        if (video is not null)
+                            await bot.SendVideoSafely(video.Path ?? "empty", video.Grab ?? "empty");
+                    }
+                    catch (Exception ex)
+                    {
+                        logger?.LogWarning(ex, "Не удалось отправить видео через Telegram");
+                    }
                 }
             }
             catch (Exception ex)
@@ -164,20 +182,6 @@ namespace CountryTelegramBot
             }
         }
 
-        private string? GetDirectoryFromFilePath(string filePath)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(filePath))
-                    return null;
-                return Path.GetDirectoryName(filePath);
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex, "Ошибка обработки пути");
-            }
-            return null;
-        }
 
         private string? GetLastGrab(string? folderPath)
         {
@@ -188,6 +192,7 @@ namespace CountryTelegramBot
                     logger?.LogWarning($"Папка не существует: {folderPath}");
                     return null;
                 }
+                 
                 var imageExtensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".gif" };
                 var imageFiles = Directory.GetFiles(folderPath)
                     .Where(file => imageExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()))
@@ -229,14 +234,14 @@ namespace CountryTelegramBot
         }
         public void Dispose()
         {
-            if (disposed) return;
-            foreach (var watcher in watchers)
-            {
-                watcher.EnableRaisingEvents = false;
-                watcher.Created -= async (s, e) => await OnNewVideo(s, e); ;
-                watcher.Dispose();
-            }
-            disposed = true;
+            //if (disposed) return;
+            //foreach (var watcher in watchers)
+            //{
+            //    watcher.EnableRaisingEvents = false;
+            //    watcher.Created -= async (s, e) => await OnNewVideo(s, e); ;
+            //    watcher.Dispose();
+            //}
+            //disposed = true;
         }
     }
 }

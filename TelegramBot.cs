@@ -1,4 +1,4 @@
-﻿﻿﻿﻿using Telegram.Bot;
+﻿﻿using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -6,10 +6,10 @@ using Telegram.Bot.Types.ReplyMarkups;
 using Microsoft.Extensions.Logging;
 using CountryTelegramBot.Repositories;
 using CountryTelegramBot.Services;
+using System.Text;
 
 namespace CountryTelegramBot
 {
-    using CountryTelegramBot.Models;
 
     public class TelegramBot : ITelegramBotService, IDisposable
     {
@@ -54,6 +54,17 @@ namespace CountryTelegramBot
         {
             try
             {
+                // First, delete any existing webhook to avoid conflicts
+                try
+                {
+                    await bot.DeleteWebhook();
+                    logger.LogInformation("Existing webhook deleted successfully");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to delete webhook, but continuing anyway");
+                }
+
                 bot.OnError += OnError;
                 bot.OnMessage += OnMessage;
                 bot.OnUpdate += OnUpdate;
