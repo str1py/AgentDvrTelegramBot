@@ -37,21 +37,9 @@ namespace CountryTelegramBot
         }
         private readonly List<string> folders;
         private readonly List<FileSystemWatcher> watchers;
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-        private readonly ITelegramBot bot;
-        private readonly ILogger? logger;
-        private readonly IDbConnection dbConnection;
-=======
         private readonly ITelegramBotService bot;
         private readonly ILogger<VideoWatcher>? logger;
         private IVideoRepository videoRepository;
->>>>>>> Stashed changes
-=======
-        private readonly ITelegramBotService bot;
-        private readonly ILogger<VideoWatcher>? logger;
-        private IVideoRepository videoRepository;
->>>>>>> Stashed changes
         private WatcherType watcherType;
         private bool disposed;
         private readonly ITimeHelper timeHelper;
@@ -60,23 +48,14 @@ namespace CountryTelegramBot
 
 
 
-        public VideoWatcher(ITelegramBotService bot, IVideoRepository videoRepository, CountryTelegramBot.Configs.CommonConfig config, TimeHelper timeHelper, FileHelper fileHelper, IEnumerable<string>? watchFolders = null,
+        public VideoWatcher(ITelegramBotService bot, IVideoRepository videoRepository, CountryTelegramBot.Configs.CommonConfig config, ITimeHelper timeHelper, IFileHelper fileHelper, IEnumerable<string>? watchFolders = null,
         ILogger<VideoWatcher>? logger = null)
         {
             this.bot = bot ?? throw new ArgumentNullException(nameof(bot));
             this.logger = logger;
             this.fileHelper = fileHelper ?? throw new ArgumentNullException(nameof(fileHelper));
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-            this.dbConnection = dbConnection ?? throw new ArgumentNullException(nameof(dbConnection));
+            this.videoRepository = videoRepository ?? throw new ArgumentNullException(nameof(videoRepository));
             this.timeHelper = timeHelper ?? throw new ArgumentNullException(nameof(timeHelper));
-       
-=======
-            this.videoRepository = videoRepository ?? throw new ArgumentNullException(nameof(videoRepository));
->>>>>>> Stashed changes
-=======
-            this.videoRepository = videoRepository ?? throw new ArgumentNullException(nameof(videoRepository));
->>>>>>> Stashed changes
 
             watcherType = GetWatcherType(config.WatcherType ?? "ASAP");
 
@@ -101,25 +80,41 @@ namespace CountryTelegramBot
         {
             try
             {
-                await Task.Delay(20000); // Ждём, пока файл полностью запишется
-                logger?.LogInformation($"{e.ChangeType}: {e.FullPath}");
-                var path = e.FullPath;
-                var grabsPath = GetDirectoryFromFilePath(path);
-                var grab = GetLastGrab(grabsPath);
-                if (grab == null)
+                logger?.LogInformation($"OnNewVideo вызван для файла: {e.FullPath}");
+                
+                // Проверяем, является ли файл видеофайлом
+                var extension = Path.GetExtension(e.FullPath)?.ToLowerInvariant();
+                logger?.LogInformation($"Расширение файла: {extension}");
+                var videoExtensions = new[] { ".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm" };
+                
+                if (!videoExtensions.Contains(extension))
                 {
-                    logger?.LogWarning($"Не найдено изображение для превью в {grabsPath}");
+                    logger?.LogInformation($"Игнорируем файл с расширением {extension}: {e.FullPath}");
                     return;
                 }
+                
+                await Task.Delay(30000); // Ждём 30 секунд, пока файл полностью запишется
+                logger?.LogInformation($"{e.ChangeType}: {e.FullPath}");
+                var path = e.FullPath;
+                
+                // Ищем превью-изображение в той же папке
+                var folderPath = Path.GetDirectoryName(path);
+                var grab = GetLastGrab(folderPath);
+                
+                if (grab == null)
+                {
+                    logger?.LogWarning($"Не найдено изображение для превью в {folderPath}");
+                    // Продолжаем выполнение даже без превью
+                }
 
-                await videoRepository.AddVideoAsync(path, grab);
+                await videoRepository.AddVideoAsync(path, grab ?? string.Empty);
                 logger?.LogInformation($"В базу данных добавлена новая запись ({Path.GetFileName(path)})");
 
-                if (watcherType == WatcherType.ASAP)
+                if (watcherType == WatcherType.ASAP && grab != null)
                 {
                     var video = await videoRepository.GetLastVideoAsync();
                     if (video is not null)
-                        await bot.SendVideoSafely(video?.Path ?? "empty", video?.Grab ?? "empty");
+                        await bot.SendVideoSafely(video.Path ?? "empty", video.Grab ?? "empty");
                 }
             }
             catch (Exception ex)
@@ -130,43 +125,42 @@ namespace CountryTelegramBot
         }
 
 
-        private void SendVideo(object? state)
+        private async void SendVideo(object? state)
         {
-            var now = DateTime.Now;
-            logger?.LogInformation($"{DateTime.Now.ToShortTimeString()}: Here is a tick in SendVideo");
-            if (watcherType == WatcherType.Morning)
+            try
             {
-                if (now >= timeHelper.MorningReport)
+                var now = DateTime.Now;
+                logger?.LogInformation($"{DateTime.Now.ToShortTimeString()}: Here is a tick in SendVideo");
+                if (watcherType == WatcherType.Morning)
                 {
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-                    var vid = dbConnection.GetVideos(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
-                    bot.SendVideoGroupAsync(vid, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate).Wait();
-=======
-=======
->>>>>>> Stashed changes
-                    var vid = await videoRepository.GetVideosAsync(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
-                    await bot.SendVideoGroupAsync(vid, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
->>>>>>> Stashed changes
-                    timeHelper.CalculateNextNightPeriod();
-                    timeHelper.CalculateNextMorningReport();
+                    if (now >= timeHelper.MorningReport)
+                    {
+                        var vid = await videoRepository.GetVideosAsync(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
+                        await bot.SendVideoGroupAsync(vid, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
+                        timeHelper.CalculateNextNightPeriod();
+                        timeHelper.CalculateNextMorningReport();
+                    }
+                }
+                else if (watcherType == WatcherType.MorningAndEvening)
+                {
+                    if (now >= timeHelper.EveningReport)
+                    {
+                        var vidNight = await videoRepository.GetVideosAsync(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
+                        var vidDay = await videoRepository.GetVideosAsync(timeHelper.DayVideoStartDate, timeHelper.DayVideoEndDate);
+
+                        await bot.SendVideoGroupAsync(vidDay, timeHelper.DayVideoStartDate, timeHelper.DayVideoEndDate);
+                        await bot.SendVideoGroupAsync(vidNight, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
+
+                        timeHelper.CalculateNextDayPeriod();
+                        timeHelper.CalculateNextNightPeriod();
+                        timeHelper.CalculateNextMorningReport();
+                        timeHelper.CalculateNextEveningReport();
+                    }
                 }
             }
-            else if (watcherType == WatcherType.MorningAndEvening)
+            catch (Exception ex)
             {
-                if (now >= timeHelper.EveningReport)
-                {
-                    var vidNight = await videoRepository.GetVideosAsync(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
-                    var vidDay = await videoRepository.GetVideosAsync(timeHelper.DayVideoStartDate, timeHelper.DayVideoEndDate);
-
-                    bot.SendVideoGroupAsync(vidDay, timeHelper.DayVideoStartDate, timeHelper.DayVideoEndDate).Wait();
-                    bot.SendVideoGroupAsync(vidNight, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate).Wait();
-
-                    timeHelper.CalculateNextDayPeriod();
-                    timeHelper.CalculateNextNightPeriod();
-                    timeHelper.CalculateNextMorningReport();
-                    timeHelper.CalculateNextEveningReport();
-                }
+                logger?.LogError(ex, "Ошибка в методе SendVideo");
             }
         }
 
@@ -176,13 +170,7 @@ namespace CountryTelegramBot
             {
                 if (string.IsNullOrWhiteSpace(filePath))
                     return null;
-                string? directory = Path.GetDirectoryName(filePath);
-                if (!string.IsNullOrEmpty(directory))
-                {
-                    if (!directory.EndsWith(Path.DirectorySeparatorChar.ToString()))
-                        directory += Path.DirectorySeparatorChar;
-                    return Path.Combine(directory, "grabs");
-                }
+                return Path.GetDirectoryName(filePath);
             }
             catch (Exception ex)
             {

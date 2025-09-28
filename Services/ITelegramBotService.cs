@@ -26,6 +26,6 @@ namespace CountryTelegramBot.Services
         /// <param name="startDate">Начальная дата периода</param>
         /// <param name="endDate">Конечная дата периода</param>
         /// <returns>Задача отправки группы видео</returns>
-        Task SendVideoGroupAsync(List<VideoModel> videos, DateTime startDate, DateTime endDate);
+        Task SendVideoGroupAsync(IEnumerable<VideoModel> videos, DateTime startDate, DateTime endDate);
     }
 }

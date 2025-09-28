@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿using Telegram.Bot;
+﻿﻿﻿﻿using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -9,17 +9,9 @@ using CountryTelegramBot.Services;
 
 namespace CountryTelegramBot
 {
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
     using CountryTelegramBot.Models;
 
-    public class TelegramBot : ITelegramBot, IDisposable
-=======
     public class TelegramBot : ITelegramBotService, IDisposable
->>>>>>> Stashed changes
-=======
-    public class TelegramBot : ITelegramBotService, IDisposable
->>>>>>> Stashed changes
     {
         // Реализация метода интерфейса ITelegramBot
         public async Task SendMessage(long chatId, string text)
@@ -284,7 +276,6 @@ namespace CountryTelegramBot
                         {
                             if (vid?.Path != null)
                             {
-<<<<<<< Updated upstream
                                 var videoStream = await fileHelper.GetFileStreamFromVideo(vid.Path);
                                 if (videoStream != null)
                                 {
@@ -292,20 +283,14 @@ namespace CountryTelegramBot
                                 }
                                 else
                                 {
-                                    if (await dbConnection.RemoveItemByPath(vid.Path))
+                                    if (await videoRepository.RemoveByPathAsync(vid.Path))
                                         logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
                                 }
-=======
-                                // Создаем медиа-объект для альбома
-                                media.Add(new InputMediaVideo(
-                                    media: InputFile.FromStream(videoStream, Path.GetFileName(vid.Path))
-                                ));
                             }
                             else
                             {
                                 if (await videoRepository.RemoveByPathAsync(vid.Path))
                                     logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
->>>>>>> Stashed changes
                             }
                         }
                         await bot.SendMediaGroup(chatId, media);

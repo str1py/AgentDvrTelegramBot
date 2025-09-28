@@ -88,10 +88,10 @@ namespace CountryTelegramBot
                 .ToList();
         }
        
-        public async Task<VideoModel?> GetLastVideo()
+        public async Task<VideoModel> GetLastVideo()
         {
             var result = await DbCountryContext.Video.AsNoTracking().OrderByDescending(v => v.Date).FirstOrDefaultAsync();
-            return result;
+            return result ?? new VideoModel();
         }
 
         public async Task<bool> RemoveItemByPath(string path)

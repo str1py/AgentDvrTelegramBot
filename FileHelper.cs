@@ -76,9 +76,9 @@ namespace CountryTelegramBot
                 return new FileSystemWatcher
                 {
                     Path = folder,
-                    Filter = "*.mp4",
+                    Filter = "*.*", // Отслеживаем все файлы
                     NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
-                    EnableRaisingEvents = true
+                    EnableRaisingEvents = false // Устанавливаем в false, так как StartWatching() включит его
                 };
             }
         
