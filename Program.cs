@@ -1,4 +1,4 @@
-﻿﻿using Microsoft.EntityFrameworkCore;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,6 +16,13 @@ internal class Program
 {
     public static async Task Main(string[] args)
     {
+        // Check if this is a test run
+        if (args.Length > 0 && args[0] == "--test-db")
+        {
+            TestDbContext.TestConnection();
+            return;
+        }
+
         var host = CreateHostBuilder(args).Build();
 
         try
@@ -156,7 +163,11 @@ internal class Program
                 services.Configure<ConnectionStringsConfig>(configuration.GetSection("ConnectionStrings"));
                 
                 // Регистрация IErrorHandler
-                services.AddSingleton<IErrorHandler, DefaultErrorHandler>();
+                services.AddSingleton<IErrorHandler>(provider =>
+                {
+                    var logger = provider.GetRequiredService<ILogger<DefaultErrorHandler>>();
+                    return new DefaultErrorHandler(logger);
+                });
                 
                 // Получаем строку подключения
                 var dbConfig = configuration.GetSection("ConnectionStrings").Get<ConnectionStringsConfig>();
@@ -198,8 +209,13 @@ internal class Program
                     try
                     {
                         var logger = provider.GetRequiredService<ILogger<DbConnection>>();
-                        var options = provider.GetRequiredService<DbContextOptions<DbCountryContext>>();
+                        var context = provider.GetRequiredService<DbCountryContext>();
                         var errorHandler = provider.GetService<IErrorHandler>();
+                        // We need to create DbContextOptions for DbConnection
+                        var options = new DbContextOptionsBuilder<DbCountryContext>()
+                            .UseMySql(context.Database.GetDbConnection().ConnectionString, 
+                                     ServerVersion.AutoDetect(context.Database.GetDbConnection().ConnectionString))
+                            .Options;
                         return new DbConnection(logger, options, errorHandler);
                     }
                     catch (Exception ex)

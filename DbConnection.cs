@@ -7,22 +7,6 @@ namespace CountryTelegramBot
 
     public class DbConnection : DbContext, IDbConnection
     {
-        /// <summary>
-        /// Проверяет целостность данных: возвращает список записей, для которых отсутствует файл по указанному пути.
-        /// </summary>
-        public List<VideoModel> GetBrokenVideos()
-        {
-            var broken = new List<VideoModel>();
-            var allVideos = DbCountryContext.Video.AsNoTracking().ToList();
-            foreach (var video in allVideos)
-            {
-                if (!System.IO.File.Exists(video.Path))
-                {
-                    broken.Add(video);
-                }
-            }
-            return broken;
-        }
     
         public bool IsConnected { get; private set; } = false;
         public DbCountryContext DbCountryContext { get; private set; }
@@ -51,7 +35,23 @@ namespace CountryTelegramBot
                 errorHandler?.HandleError(ex, "Ошибка подключения к базе данных");
             }
         }
-
+        /// <summary>
+        /// Проверяет целостность данных: возвращает список записей, для которых отсутствует файл по указанному пути.
+        /// </summary>
+        public List<VideoModel> GetBrokenVideos()
+        {
+            var broken = new List<VideoModel>();
+            var allVideos = DbCountryContext.Video.AsNoTracking().ToList();
+            foreach (var video in allVideos)
+            {
+                if (!System.IO.File.Exists(video.Path))
+                {
+                    broken.Add(video);
+                }
+            }
+            return broken;
+        }
+    
         /// <summary>
         /// Удаляет битые записи (файлы, которых нет на диске) из базы данных
         /// </summary>

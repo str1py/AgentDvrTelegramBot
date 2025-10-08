@@ -9,11 +9,13 @@ namespace CountryTelegramBot.Models
 
     public class DefaultErrorHandler : IErrorHandler
     {
-        private readonly Microsoft.Extensions.Logging.ILogger _logger;
-        public DefaultErrorHandler(Microsoft.Extensions.Logging.ILogger logger)
+        private readonly ILogger<DefaultErrorHandler> _logger;
+        
+        public DefaultErrorHandler(ILogger<DefaultErrorHandler> logger)
         {
             _logger = logger;
         }
+        
         public void HandleError(Exception ex, string context = "")
         {
             _logger.LogError(ex, $"{context}");
