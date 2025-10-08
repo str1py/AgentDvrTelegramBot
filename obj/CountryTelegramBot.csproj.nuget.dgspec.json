@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Administrator\\Documents\\GitHub\\AgentDvrTelegramBot\\CountryTelegramBot.csproj": {}
+    "C:\\Users\\rdp.wonderland-ch\\Desktop\\AgentDvrTelegramBot\\CountryTelegramBot.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Administrator\\Documents\\GitHub\\AgentDvrTelegramBot\\CountryTelegramBot.csproj": {
+    "C:\\Users\\rdp.wonderland-ch\\Desktop\\AgentDvrTelegramBot\\CountryTelegramBot.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Administrator\\Documents\\GitHub\\AgentDvrTelegramBot\\CountryTelegramBot.csproj",
+        "projectUniqueName": "C:\\Users\\rdp.wonderland-ch\\Desktop\\AgentDvrTelegramBot\\CountryTelegramBot.csproj",
         "projectName": "CountryTelegramBot",
-        "projectPath": "C:\\Users\\Administrator\\Documents\\GitHub\\AgentDvrTelegramBot\\CountryTelegramBot.csproj",
-        "packagesPath": "C:\\Users\\Administrator\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Administrator\\Documents\\GitHub\\AgentDvrTelegramBot\\obj\\",
+        "projectPath": "C:\\Users\\rdp.wonderland-ch\\Desktop\\AgentDvrTelegramBot\\CountryTelegramBot.csproj",
+        "packagesPath": "C:\\Users\\rdp.wonderland-ch\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\rdp.wonderland-ch\\Desktop\\AgentDvrTelegramBot\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\Administrator\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "C:\\Users\\rdp.wonderland-ch\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
@@ -37,18 +37,17 @@
           "enableAudit": "true",
           "auditLevel": "low",
           "auditMode": "direct"
-        },
-        "SdkAnalysisLevel": "9.0.300"
+        }
       },
       "frameworks": {
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
-            "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {
+            "Microsoft.EntityFrameworkCore": {
               "target": "Package",
               "version": "[8.0.13, )"
             },
-            "Microsoft.EntityFrameworkCore": {
+            "Microsoft.EntityFrameworkCore.Abstractions": {
               "target": "Package",
               "version": "[8.0.13, )"
             },
@@ -62,9 +61,11 @@
               "target": "Package",
               "version": "[8.0.13, )"
             },
-            "Microsoft.Extensions.Configuration.Abstractions": {
+            "Microsoft.EntityFrameworkCore.Tools": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
               "target": "Package",
-              "version": "[9.0.9, )"
+              "version": "[8.0.13, )"
             },
             "Microsoft.Extensions.Configuration.FileExtensions": {
               "target": "Package",
@@ -91,10 +92,6 @@
               "version": "[9.0.9, )"
             },
             "Microsoft.Extensions.Logging.Console": {
-              "target": "Package",
-              "version": "[9.0.7, )"
-            },
-            "Microsoft.Extensions.Options.DataAnnotations": {
               "target": "Package",
               "version": "[9.0.7, )"
             },
@@ -126,30 +123,12 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
-          "downloadDependencies": [
-            {
-              "name": "Microsoft.AspNetCore.App.Ref",
-              "version": "[8.0.16, 8.0.16]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Host.win-x64",
-              "version": "[8.0.16, 8.0.16]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Ref",
-              "version": "[8.0.16, 8.0.16]"
-            },
-            {
-              "name": "Microsoft.WindowsDesktop.App.Ref",
-              "version": "[8.0.16, 8.0.16]"
-            }
-          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.300/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.411/PortableRuntimeIdentifierGraph.json"
         }
       }
     }
