@@ -1,4 +1,4 @@
-﻿﻿using Telegram.Bot;
+﻿﻿﻿﻿using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -275,13 +275,11 @@ namespace CountryTelegramBot
                     .Select((path, index) => new { path, index })
                     .GroupBy(x => x.index / maxGroupSize, x => x.path);
 
-                var alreadeSendedVideos = 0;
+                var alreadySentVideos = 0;
                 foreach (var group in groups)
                 {
                     try
                     {
-                        alreadeSendedVideos += group.Count();
-                        logger?.LogInformation($"Начинаю отправку {alreadeSendedVideos}/{videoList.Count} видео");
                         var media = new List<IAlbumInputMedia>();
                         foreach (var vid in group)
                         {
@@ -294,22 +292,47 @@ namespace CountryTelegramBot
                                 }
                                 else
                                 {
+                                    // File not accessible, remove from database
                                     if (await videoRepository.RemoveByPathAsync(vid.Path))
                                         logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
                                 }
                             }
-                            else
-                            {
-                                if (await videoRepository.RemoveByPathAsync(vid.Path))
-                                    logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
-                            }
                         }
-                        await bot.SendMediaGroup(chatId, media);
+                        
+                        // Only send media group if it contains items
+                        if (media.Count > 0)
+                        {
+                            alreadySentVideos += media.Count;
+                            logger?.LogInformation($"Начинаю отправку {alreadySentVideos}/{videoList.Count} видео");
+                            await bot.SendMediaGroup(chatId, media);
+                        }
+                        else
+                        {
+                            logger?.LogWarning("Пропущена отправка группы медиа, так как ни одно видео не доступно");
+                        }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Ошибка отправки видеоальбома: {ex.Message}");
+                        logger?.LogError(ex, $"Ошибка отправки видеоальбома");
                     }
+                }
+                
+                // Report on how many videos were actually sent vs expected
+                if (alreadySentVideos == 0 && videoList.Count > 0)
+                {
+                    await bot.SendMessage(
+                        chatId: chatId,
+                        text: "⚠️ Все видео из отчета недоступны и были удалены из базы данных.",
+                        parseMode: ParseMode.Html
+                    );
+                }
+                else if (alreadySentVideos < videoList.Count)
+                {
+                    await bot.SendMessage(
+                        chatId: chatId,
+                        text: $"ℹ️ Отправлено {alreadySentVideos} из {videoList.Count} видео. Недоступные видео были удалены из базы данных.",
+                        parseMode: ParseMode.Html
+                    );
                 }
             }
         }
