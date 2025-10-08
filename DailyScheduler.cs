@@ -36,8 +36,8 @@ public class DailyScheduler : IDailyScheduler
             }
             catch (Exception ex)
             {
-                // Log the exception but continue with other callbacks
-                Console.WriteLine($"Error in DailyScheduler callback: {ex.Message}");
+                // Логируем исключение, но продолжаем выполнение других callback-функций
+                Console.WriteLine($"Ошибка в callback-функции DailyScheduler: {ex.Message}");
             }
         }
     }

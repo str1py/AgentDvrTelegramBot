@@ -1,4 +1,4 @@
-﻿﻿using Telegram.Bot;
+﻿﻿﻿﻿﻿﻿using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -256,9 +256,12 @@ namespace CountryTelegramBot
 
         public async Task SendVideoGroupAsync(IEnumerable<VideoModel> videos, DateTime start, DateTime end)
         {
+            logger?.LogInformation($"Отправка группы видео: {start} - {end}");
+            
             var videoList = videos.ToList();
             if (videoList.Count == 0)
             {
+                logger?.LogInformation("Нет видео для отправки в отчете");
                 await bot.SendMessage(
                     chatId: chatId,
                     text: $"Тревог не зафиксировано с {start.ToShortDateString()} {start.ToShortTimeString()} по {end.ToShortDateString()} {end.ToShortTimeString()}",
@@ -267,6 +270,7 @@ namespace CountryTelegramBot
             }
             else
             {
+                logger?.LogInformation($"Отправка отчета с {videoList.Count} видео");
                 await bot.SendMessage(
                         chatId: chatId,
                         text: $"Отправляю отчет за период с {start.ToShortDateString()} {start.ToShortTimeString()} по {end.ToShortDateString()} {end.ToShortTimeString()}",
@@ -298,14 +302,14 @@ namespace CountryTelegramBot
                                 }
                                 else
                                 {
-                                    // File not accessible, remove from database
+                                    // Файл недоступен, удаляем из базы данных
                                     if (await videoRepository.RemoveByPathAsync(vid.Path))
                                         logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
                                 }
                             }
                         }
                         
-                        // Only send media group if it contains items
+                        // Отправляем группу медиа только если она содержит элементы
                         if (media.Count > 0)
                         {
                             alreadySentVideos += media.Count;
@@ -325,7 +329,7 @@ namespace CountryTelegramBot
                     }
                 }
                 
-                // Report on how many videos were actually sent vs expected
+                // Сообщаем о количестве отправленных видео
                 if (alreadySentVideos == 0 && videoList.Count > 0)
                 {
                     sendSuccess = false;
@@ -345,23 +349,27 @@ namespace CountryTelegramBot
                     );
                 }
                 
-                // Log report sending status
+                // Сохраняем статус отправки отчета в базе данных
                 try
                 {
-                    // Check if we already have a record for this report period
+                    logger?.LogInformation($"Сохранение статуса отправки отчета в БД: {start} - {end}, Успешно: {sendSuccess}, Ошибка: {errorMessage}");
+                    
+                    // Проверяем, есть ли уже запись для этого периода отчета
                     var existingReportStatus = dbConnection.GetReportStatus(start, end);
                     if (existingReportStatus != null)
                     {
-                        // Update existing record
+                        // Обновляем существующую запись
+                        logger?.LogInformation($"Обновление существующей записи о статусе отчета (ID: {existingReportStatus.Id})");
                         await dbConnection.UpdateReportStatus(existingReportStatus.Id, sendSuccess, errorMessage);
                     }
                     else
                     {
-                        // Create new record
+                        // Создаем новую запись
+                        logger?.LogInformation("Создание новой записи о статусе отчета");
                         await dbConnection.AddReportStatus(start, end, sendSuccess, errorMessage);
                     }
                     
-                    logger?.LogInformation($"Report sending status saved: Success={sendSuccess}, ErrorMessage={errorMessage}");
+                    logger?.LogInformation($"Статус отправки отчета сохранен: Успешно={sendSuccess}, Ошибка={errorMessage}");
                 }
                 catch (Exception ex)
                 {

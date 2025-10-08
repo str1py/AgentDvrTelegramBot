@@ -22,16 +22,16 @@ namespace CountryTelegramBot
                 DbCountryContext = new DbCountryContext(options);
                 IsConnected = DbCountryContext.Database.CanConnect();
                 if (IsConnected)
-                    logger?.LogInformation($"Connected to database successfully! Connection string: {MaskSecret(options?.ToString())}");
+                    logger?.LogInformation($"Подключение к базе данных установлено успешно! Строка подключения: {MaskSecret(options?.ToString())}");
                 else
-                    logger?.LogError($"Connection error");
+                    logger?.LogError($"Ошибка подключения");
                 // Автоматическое удаление битых записей при запуске
                 if (IsConnected)
                     RemoveBrokenVideos();
             }
             catch (Exception ex)
             {
-                logger?.LogError($"Connection error: {ex.Message}");
+                logger?.LogError($"Ошибка подключения: {ex.Message}");
                 errorHandler?.HandleError(ex, "Ошибка подключения к базе данных");
             }
         }
@@ -68,7 +68,7 @@ namespace CountryTelegramBot
 
         private string MaskSecret(string? secret)
         {
-            if (string.IsNullOrEmpty(secret)) return "[empty]";
+            if (string.IsNullOrEmpty(secret)) return "[пусто]";
             if (secret.Length <= 8) return "********";
             return secret.Substring(0, 4) + new string('*', secret.Length - 8) + secret.Substring(secret.Length - 4);
         }
@@ -116,13 +116,15 @@ namespace CountryTelegramBot
     
         }
    
-        // Report Status Methods
+        // Методы для работы со статусом отчетов
         
         /// <summary>
-        /// Adds a new report status record
+        /// Добавляет новую запись о статусе отчета
         /// </summary>
         public async Task AddReportStatus(DateTime startDate, DateTime endDate, bool isSent, string? errorMessage = null)
         {
+            logger?.LogInformation($"Добавление статуса отчета в БД: {startDate} - {endDate}, Отправлено: {isSent}, Ошибка: {errorMessage}");
+            
             var reportStatus = new ReportStatusModel
             {
                 StartDate = startDate,
@@ -135,13 +137,17 @@ namespace CountryTelegramBot
             
             DbCountryContext.ReportStatus.Add(reportStatus);
             await DbCountryContext.SaveChangesAsync();
+            
+            logger?.LogInformation($"Статус отчета успешно добавлен в БД с ID: {reportStatus.Id}");
         }
         
         /// <summary>
-        /// Updates an existing report status record
+        /// Обновляет существующую запись о статусе отчета
         /// </summary>
         public async Task UpdateReportStatus(int id, bool isSent, string? errorMessage = null)
         {
+            logger?.LogInformation($"Обновление статуса отчета в БД (ID: {id}): Отправлено: {isSent}, Ошибка: {errorMessage}");
+            
             var reportStatus = await DbCountryContext.ReportStatus.FindAsync(id);
             if (reportStatus != null)
             {
@@ -152,38 +158,71 @@ namespace CountryTelegramBot
                 reportStatus.ErrorMessage = errorMessage;
                 
                 await DbCountryContext.SaveChangesAsync();
+                
+                logger?.LogInformation($"Статус отчета успешно обновлен в БД (ID: {id})");
+            }
+            else
+            {
+                logger?.LogWarning($"Не удалось найти запись о статусе отчета в БД (ID: {id})");
             }
         }
         
         /// <summary>
-        /// Gets all unsent reports
+        /// Получает все неотправленные отчеты
         /// </summary>
         public List<ReportStatusModel> GetUnsentReports()
         {
-            return DbCountryContext.ReportStatus
+            logger?.LogInformation("Получение всех неотправленных отчетов из БД");
+            var unsentReports = DbCountryContext.ReportStatus
                 .AsNoTracking()
                 .Where(r => !r.IsSent)
                 .ToList();
+            logger?.LogInformation($"Найдено {unsentReports.Count} неотправленных отчетов");
+            return unsentReports;
         }
         
         /// <summary>
-        /// Gets report status by date range
+        /// Получает статус отчета по диапазону дат
         /// </summary>
         public ReportStatusModel? GetReportStatus(DateTime startDate, DateTime endDate)
         {
-            return DbCountryContext.ReportStatus
+            logger?.LogInformation($"Поиск статуса отчета в БД: {startDate} - {endDate}");
+            var reportStatus = DbCountryContext.ReportStatus
                 .AsNoTracking()
                 .FirstOrDefault(r => r.StartDate == startDate && r.EndDate == endDate);
+            
+            if (reportStatus != null)
+            {
+                logger?.LogInformation($"Найден статус отчета в БД (ID: {reportStatus.Id}): Отправлено: {reportStatus.IsSent}, Дата отправки: {reportStatus.SentAt}");
+            }
+            else
+            {
+                logger?.LogInformation("Статус отчета не найден в БД");
+            }
+            
+            return reportStatus;
         }
         
         /// <summary>
-        /// Gets report status by date range asynchronously
+        /// Асинхронно получает статус отчета по диапазону дат
         /// </summary>
         public async Task<ReportStatusModel?> GetReportStatusAsync(DateTime startDate, DateTime endDate)
         {
-            return await DbCountryContext.ReportStatus
+            logger?.LogInformation($"Асинхронный поиск статуса отчета в БД: {startDate} - {endDate}");
+            var reportStatus = await DbCountryContext.ReportStatus
                 .AsNoTracking()
                 .FirstOrDefaultAsync(r => r.StartDate == startDate && r.EndDate == endDate);
+            
+            if (reportStatus != null)
+            {
+                logger?.LogInformation($"Найден статус отчета в БД (ID: {reportStatus.Id}): Отправлено: {reportStatus.IsSent}, Дата отправки: {reportStatus.SentAt}");
+            }
+            else
+            {
+                logger?.LogInformation("Статус отчета не найден в БД");
+            }
+            
+            return reportStatus;
         }
     }
 }

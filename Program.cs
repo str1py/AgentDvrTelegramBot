@@ -57,7 +57,7 @@ internal class Program
                 logger.LogWarning(ex, "Ошибка инициализации AgentDVR. Продолжаем работу.");
             }
 
-            // Check for unsent reports and try to send them
+            // Проверяем наличие неотправленных отчетов и пытаемся отправить их
             try
             {
                 var dbConnection = scope.ServiceProvider.GetService<IDbConnection>();
@@ -87,10 +87,10 @@ internal class Program
             {
                 await telegramBot.StartBot();
             }
-            // Keep the application running
+            // Приложение продолжает работу
             logger.LogInformation("Приложение запущено и продолжает работу. Нажмите Ctrl+C для завершения.");
                 
-            // Wait indefinitely to keep the application alive
+            // Ждем бесконечно, чтобы приложение продолжало работать
             await Task.Delay(-1);
         }
         catch (Exception ex)
@@ -117,10 +117,10 @@ internal class Program
                 {
                     logger.LogInformation($"Попытка отправки отчета за период {report.StartDate} - {report.EndDate}");
                         
-                    // Get videos for this report period
+                    // Получаем видео для этого периода отчета
                     var videos = await videoRepository.GetVideosAsync(report.StartDate, report.EndDate);
                         
-                    // Send the report
+                    // Отправляем отчет
                     await telegramBotService.SendVideoGroupAsync(videos, report.StartDate, report.EndDate);
                         
                     logger.LogInformation($"Отчет за период {report.StartDate} - {report.EndDate} успешно отправлен");
@@ -204,7 +204,7 @@ internal class Program
                         var logger = provider.GetRequiredService<ILogger<DbConnection>>();
                         var context = provider.GetRequiredService<DbCountryContext>();
                         var errorHandler = provider.GetService<IErrorHandler>();
-                        // We need to create DbContextOptions for DbConnection
+                        // Создаем DbContextOptions для DbConnection
                         var options = new DbContextOptionsBuilder<DbCountryContext>()
                             .UseMySql(context.Database.GetDbConnection().ConnectionString, 
                                      ServerVersion.AutoDetect(context.Database.GetDbConnection().ConnectionString))
@@ -253,12 +253,11 @@ internal class Program
                     
                     var botConfig = configuration.GetSection("TelegramBot").Get<TelegramBotConfig>();
                     
-                    // Create scope to get the database connection
-                    using var scope = provider.CreateScope();
-                    var dbConnection = scope.ServiceProvider.GetRequiredService<IDbConnection>();
-                    var videoRepository = scope.ServiceProvider.GetRequiredService<IVideoRepository>();
-                    
-                    return new TelegramBot(botConfig.BotToken, botConfig.ChatId, agentDvr, videoRepository, fileHelper, logger, dbConnection);
+                    // Получаем сервисы через провайдер, а не через scope
+                    return new TelegramBot(botConfig.BotToken, botConfig.ChatId, agentDvr, 
+                        provider.GetRequiredService<IVideoRepository>(),
+                        fileHelper, logger, 
+                        provider.GetRequiredService<IDbConnection>());
                 });
                 services.AddSingleton<ITelegramBotService>(provider => provider.GetRequiredService<TelegramBot>());
                 
@@ -271,7 +270,7 @@ internal class Program
                     var timeHelper = provider.GetRequiredService<TimeHelper>();
                     var fileHelper = provider.GetRequiredService<FileHelper>();
                     var dbConnection = provider.GetRequiredService<IDbConnection>();
-                    var videoRepository = provider.GetRequiredService<IVideoRepository>(); // Add this line
+                    var videoRepository = provider.GetRequiredService<IVideoRepository>();
                     
                     var commonConfig = configuration.GetSection("Common").Get<CommonConfig>() ?? new CommonConfig();
                     var watcherConfig = configuration.GetSection("SnapshotWatcher").Get<SnapshotWatcherConfig>() ?? new SnapshotWatcherConfig();
