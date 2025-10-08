@@ -244,6 +244,10 @@ namespace CountryTelegramBot
                         var startDate = timeHelper.NightVideoStartDate.AddDays(-1);
                         var endDate = timeHelper.NightVideoEndDate.AddDays(-1);
                         logger?.LogInformation($"Отправка утреннего отчета за период: {startDate} - {endDate}");
+                        
+                        // Добавляем запись в БД с IsSent = false перед отправкой
+                        await AddPendingReportStatus(startDate, endDate);
+                        
                         var videos = await dbConnection.GetVideosAsync(startDate, endDate);
                         await bot.SendVideoGroupAsync(videos, startDate, endDate);
                     }
@@ -254,6 +258,10 @@ namespace CountryTelegramBot
                         var dayStartDate = timeHelper.DayVideoStartDate;
                         var dayEndDate = timeHelper.DayVideoEndDate;
                         logger?.LogInformation($"Отправка дневного отчета за период: {dayStartDate} - {dayEndDate}");
+                        
+                        // Добавляем запись в БД с IsSent = false перед отправкой
+                        await AddPendingReportStatus(dayStartDate, dayEndDate);
+                        
                         var dayVideos = await dbConnection.GetVideosAsync(dayStartDate, dayEndDate);
                         await bot.SendVideoGroupAsync(dayVideos, dayStartDate, dayEndDate);
                         
@@ -261,6 +269,10 @@ namespace CountryTelegramBot
                         var nightStartDate = timeHelper.NightVideoStartDate.AddDays(-1);
                         var nightEndDate = timeHelper.NightVideoEndDate.AddDays(-1);
                         logger?.LogInformation($"Отправка ночного отчета за период: {nightStartDate} - {nightEndDate}");
+                        
+                        // Добавляем запись в БД с IsSent = false перед отправкой
+                        await AddPendingReportStatus(nightStartDate, nightEndDate);
+                        
                         var nightVideos = await dbConnection.GetVideosAsync(nightStartDate, nightEndDate);
                         await bot.SendVideoGroupAsync(nightVideos, nightStartDate, nightEndDate);
                     }
@@ -275,6 +287,28 @@ namespace CountryTelegramBot
             catch (Exception ex)
             {
                 logger?.LogError(ex, "Ошибка при проверке и отправке отчета");
+            }
+        }
+        
+        /// <summary>
+        /// Добавляет запись о попытке отправки отчета с IsSent = false
+        /// </summary>
+        private async Task AddPendingReportStatus(DateTime startDate, DateTime endDate)
+        {
+            try
+            {
+                // Проверяем, есть ли уже запись для этого периода отчета
+                var existingReportStatus = await dbConnection.GetReportStatusAsync(startDate, endDate);
+                if (existingReportStatus == null)
+                {
+                    // Создаем новую запись с IsSent = false
+                    await dbConnection.AddReportStatus(startDate, endDate, false, null);
+                    logger?.LogInformation($"Добавлена запись о попытке отправки отчета: {startDate} - {endDate}");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Ошибка при добавлении записи о попытке отправки отчета");
             }
         }
 
