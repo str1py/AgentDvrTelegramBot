@@ -16,6 +16,7 @@ namespace CountryTelegramBot
         public DbCountryContext(DbContextOptions<DbCountryContext> options)
                 : base(options) { }
         public DbSet<VideoModel> Video { get; set; }
+        public DbSet<Models.ReportStatusModel> ReportStatus { get; set; }
 
     }
 }

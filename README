@@ -1,39 +1,42 @@
-# AgentDVR Telegram Bot
+# AgentDvrTelegramBot
 
-AgentDVR Telegram Bot— это .NET-приложение для интеграции Telegram-бота с системой видеонаблюдения AgentDVR. Проект позволяет управлять состоянием охраны DVR, получать уведомления и автоматизировать сценарии безопасности через Telegram.
+This is a Telegram bot for monitoring and controlling an AgentDVR system, with automatic video report generation.
 
-## Основные возможности
+## Features
+- Monitor video files and send alerts via Telegram
+- Generate daily/nightly reports with video recordings
+- Control AgentDVR system remotely via Telegram commands
+- Store video metadata in a database
 
-* Управление охраной AgentDVR (включение/выключение, перезагрузка).
-* Получение статуса системы и состояния охраны.
-* Интеграция с Telegram-ботом для удалённого управления.
-* Гибкая настройка расписания автоматического включения/отключения охраны (день/ночь).
-* Логирование событий и ошибок.
-* Использование Entity Framework Core для работы с базой данных.
-* Мониторинг новых записей с камер (появление новых файлов записей в заданных папках), запись данных в БД, отправка отчетов в Telegram
-* Конфигурирование через appsettings.json.
+## Setup
+1. Configure appsettings.json with your Telegram bot token, chat ID, and AgentDVR connection details
+2. Set up a MySQL database and configure the connection string
+3. Run the application
 
-## Варианты предоставления отчетов
-* ASAP
-* Morning
-* MorningAndEvening
+## Database Migration
 
-## Требования
+After implementing the report status tracking feature, you need to create a database migration to add the new `report_status` table.
 
-* .NET 8.0+
-* Аккаунт Telegram и токен бота
-* Доступ к AgentDVR с включённым HTTP API
-* Требуется локальная база данных для записи и хранения обнаруженных тревог
+Run the following commands in the project directory:
 
-
-## Быстрый старт
-
-1. Скопируйте appsettings-example.json в appsettings.json и укажите свои параметры.
-2. Соберите проект 
 ```bash
-dotnet build
+dotnet ef migrations add AddReportStatusTable
+dotnet ef database update
 ```
-3. Запустите приложение
-```bash
-dotnet run
-```
+
+This will create the necessary table in your database for tracking report sending status.
+
+## Usage
+- The bot automatically monitors video files and sends alerts
+- Daily reports are generated and sent at configured times
+- Use Telegram commands to control the AgentDVR system:
+  - `/menu` - User menu for arming/disarming
+  - `/adminmenu` - Admin menu with full system control
+
+## Implementation Details
+
+### Report Status Tracking
+The system now tracks the sending status of reports in the database:
+- When a report is sent (or attempted), the status is recorded
+- If a report fails to send, it will be retried on the next application launch
+- This ensures no reports are lost due to temporary network issues

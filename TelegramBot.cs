@@ -1,4 +1,4 @@
-﻿﻿﻿﻿using Telegram.Bot;
+﻿﻿using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -6,6 +6,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 using Microsoft.Extensions.Logging;
 using CountryTelegramBot.Repositories;
 using CountryTelegramBot.Services;
+using CountryTelegramBot.Models;
 using System.Text;
 
 namespace CountryTelegramBot
@@ -28,8 +29,9 @@ namespace CountryTelegramBot
         private readonly ILogger<TelegramBot> logger;
         private FileHelper fileHelper;
         private IVideoRepository videoRepository;
+        private IDbConnection dbConnection;
 
-        public TelegramBot(string botToken, string chatId, AgentDVR agent, IVideoRepository videoRepository, FileHelper fileHelper, ILogger<TelegramBot> logger)
+        public TelegramBot(string botToken, string chatId, AgentDVR agent, IVideoRepository videoRepository, FileHelper fileHelper, ILogger<TelegramBot> logger, IDbConnection dbConnection)
         {
             this.botToken = botToken ?? throw new ArgumentNullException(nameof(botToken));
             this.chatId = chatId ?? throw new ArgumentNullException(nameof(chatId));
@@ -37,6 +39,7 @@ namespace CountryTelegramBot
             this.videoRepository = videoRepository ?? throw new ArgumentNullException(nameof(videoRepository));
             this.agent = agent ?? throw new ArgumentNullException(nameof(agent));
             this.fileHelper = fileHelper ?? throw new ArgumentNullException(nameof(fileHelper));
+            this.dbConnection = dbConnection ?? throw new ArgumentNullException(nameof(dbConnection));
             cts = new CancellationTokenSource();
             bot = new TelegramBotClient(botToken, cancellationToken: cts.Token);
             logger.LogInformation($"TelegramBot создан. Token: {MaskSecret(botToken)}, ChatId: {MaskSecret(chatId)}");
@@ -276,6 +279,9 @@ namespace CountryTelegramBot
                     .GroupBy(x => x.index / maxGroupSize, x => x.path);
 
                 var alreadySentVideos = 0;
+                bool sendSuccess = true;
+                string? errorMessage = null;
+                
                 foreach (var group in groups)
                 {
                     try
@@ -313,6 +319,8 @@ namespace CountryTelegramBot
                     }
                     catch (Exception ex)
                     {
+                        sendSuccess = false;
+                        errorMessage = ex.Message;
                         logger?.LogError(ex, $"Ошибка отправки видеоальбома");
                     }
                 }
@@ -320,9 +328,11 @@ namespace CountryTelegramBot
                 // Report on how many videos were actually sent vs expected
                 if (alreadySentVideos == 0 && videoList.Count > 0)
                 {
+                    sendSuccess = false;
+                    errorMessage = "Все видео из отчета недоступны и были удалены из базы данных.";
                     await bot.SendMessage(
                         chatId: chatId,
-                        text: "⚠️ Все видео из отчета недоступны и были удалены из базы данных.",
+                        text: $"⚠️ {errorMessage}",
                         parseMode: ParseMode.Html
                     );
                 }
@@ -333,6 +343,29 @@ namespace CountryTelegramBot
                         text: $"ℹ️ Отправлено {alreadySentVideos} из {videoList.Count} видео. Недоступные видео были удалены из базы данных.",
                         parseMode: ParseMode.Html
                     );
+                }
+                
+                // Log report sending status
+                try
+                {
+                    // Check if we already have a record for this report period
+                    var existingReportStatus = dbConnection.GetReportStatus(start, end);
+                    if (existingReportStatus != null)
+                    {
+                        // Update existing record
+                        await dbConnection.UpdateReportStatus(existingReportStatus.Id, sendSuccess, errorMessage);
+                    }
+                    else
+                    {
+                        // Create new record
+                        await dbConnection.AddReportStatus(start, end, sendSuccess, errorMessage);
+                    }
+                    
+                    logger?.LogInformation($"Report sending status saved: Success={sendSuccess}, ErrorMessage={errorMessage}");
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogError(ex, "Ошибка при сохранении статуса отправки отчета");
                 }
             }
         }

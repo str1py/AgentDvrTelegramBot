@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -7,6 +7,7 @@ using CountryTelegramBot;
 using CountryTelegramBot.Configs;
 using CountryTelegramBot.Repositories;
 using CountryTelegramBot.Services;
+using CountryTelegramBot.Models;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -56,6 +57,23 @@ internal class Program
                 logger.LogWarning(ex, "Ошибка инициализации AgentDVR. Продолжаем работу.");
             }
 
+            // Check for unsent reports and try to send them
+            try
+            {
+                var dbConnection = scope.ServiceProvider.GetService<IDbConnection>();
+                var telegramBotService = scope.ServiceProvider.GetService<ITelegramBotService>();
+                var videoRepository = scope.ServiceProvider.GetService<IVideoRepository>();
+                    
+                if (dbConnection != null && telegramBotService != null && videoRepository != null)
+                {
+                    await SendUnsentReports(dbConnection, telegramBotService, videoRepository, logger);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Ошибка при отправке неотправленных отчетов. Продолжаем работу.");
+            }
+
             // Запускаем VideoWatcher
             var videoWatcher = scope.ServiceProvider.GetService<VideoWatcher>();
             if (videoWatcher != null)
@@ -71,7 +89,7 @@ internal class Program
             }
             // Keep the application running
             logger.LogInformation("Приложение запущено и продолжает работу. Нажмите Ctrl+C для завершения.");
-            
+                
             // Wait indefinitely to keep the application alive
             await Task.Delay(-1);
         }
@@ -80,6 +98,42 @@ internal class Program
             var logger = host.Services.GetService<ILogger<Program>>();
             logger?.LogError(ex, "Критическая ошибка при запуске приложения");
             throw;
+        }
+    }
+        
+    /// <summary>
+    /// Проверяет наличие неотправленных отчетов и пытается отправить их
+    /// </summary>
+    private static async Task SendUnsentReports(CountryTelegramBot.Models.IDbConnection dbConnection, ITelegramBotService telegramBotService, IVideoRepository videoRepository, ILogger logger)
+    {
+        try
+        {
+            var unsentReports = dbConnection.GetUnsentReports();
+            logger.LogInformation($"Найдено {unsentReports.Count} неотправленных отчетов");
+                
+            foreach (var report in unsentReports)
+            {
+                try
+                {
+                    logger.LogInformation($"Попытка отправки отчета за период {report.StartDate} - {report.EndDate}");
+                        
+                    // Get videos for this report period
+                    var videos = await videoRepository.GetVideosAsync(report.StartDate, report.EndDate);
+                        
+                    // Send the report
+                    await telegramBotService.SendVideoGroupAsync(videos, report.StartDate, report.EndDate);
+                        
+                    logger.LogInformation($"Отчет за период {report.StartDate} - {report.EndDate} успешно отправлен");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, $"Ошибка при отправке отчета за период {report.StartDate} - {report.EndDate}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при проверке неотправленных отчетов");
         }
     }
 
@@ -100,6 +154,9 @@ internal class Program
                 services.Configure<AgentDVRConfig>(configuration.GetSection("AgentDVR"));
                 services.Configure<SnapshotWatcherConfig>(configuration.GetSection("SnapshotWatcher"));
                 services.Configure<ConnectionStringsConfig>(configuration.GetSection("ConnectionStrings"));
+                
+                // Регистрация IErrorHandler
+                services.AddSingleton<IErrorHandler, DefaultErrorHandler>();
                 
                 // Получаем строку подключения
                 var dbConfig = configuration.GetSection("ConnectionStrings").Get<ConnectionStringsConfig>();
@@ -135,6 +192,23 @@ internal class Program
                     }
                 });
                 
+                // Регистрация IDbConnection
+                services.AddScoped<IDbConnection>(provider =>
+                {
+                    try
+                    {
+                        var logger = provider.GetRequiredService<ILogger<DbConnection>>();
+                        var options = provider.GetRequiredService<DbContextOptions<DbCountryContext>>();
+                        var errorHandler = provider.GetService<IErrorHandler>();
+                        return new DbConnection(logger, options, errorHandler);
+                    }
+                    catch (Exception ex)
+                    {
+                        var logger = provider.GetRequiredService<ILogger<Program>>();
+                        logger.LogWarning(ex, "Ошибка создания подключения к базе данных. Продолжаем работу без базы данных.");
+                        return null;
+                    }
+                });
                 
                 services.AddSingleton<TimeHelper>(provider =>
                 {
@@ -154,8 +228,8 @@ internal class Program
                     var logger = provider.GetRequiredService<ILogger<AgentDVR>>();
                     var httpClient = provider.GetRequiredService<HttpClient>();
                     
-                    var dvrConfig = config.GetSection("AgentDVR").Get<AgentDVRConfig>();
-                    var commonConfig = config.GetSection("Common").Get<CommonConfig>();
+                    var dvrConfig = config.GetSection("AgentDVR").Get<AgentDVRConfig>() ?? new AgentDVRConfig();
+                    var commonConfig = config.GetSection("Common").Get<CommonConfig>() ?? new CommonConfig();
                     
                     return new AgentDVR(dvrConfig.Url, dvrConfig.User, dvrConfig.Password, commonConfig, logger, httpClient);
                 });
@@ -163,34 +237,33 @@ internal class Program
                 // Регистрация TelegramBot с фабрикой
                 services.AddSingleton<TelegramBot>(provider =>
                 {
-                    var config = provider.GetRequiredService<IConfiguration>();
+                    var configuration = provider.GetRequiredService<IConfiguration>();
                     var logger = provider.GetRequiredService<ILogger<TelegramBot>>();
                     var agentDvr = provider.GetRequiredService<AgentDVR>();
                     var fileHelper = provider.GetRequiredService<FileHelper>();
                     
-                    var botConfig = config.GetSection("TelegramBot").Get<TelegramBotConfig>();
+                    var botConfig = configuration.GetSection("TelegramBot").Get<TelegramBotConfig>();
                     
-                    // Создаем скоп для получения videoRepository
+                    // Create scope to get the database connection
                     using var scope = provider.CreateScope();
+                    var dbConnection = scope.ServiceProvider.GetRequiredService<IDbConnection>();
                     var videoRepository = scope.ServiceProvider.GetRequiredService<IVideoRepository>();
                     
-                    return new TelegramBot(botConfig.BotToken, botConfig.ChatId, agentDvr, videoRepository, fileHelper, logger);
+                    return new TelegramBot(botConfig.BotToken, botConfig.ChatId, agentDvr, videoRepository, fileHelper, logger, dbConnection);
                 });
-                
-                // Регистрация интерфейса
                 services.AddSingleton<ITelegramBotService>(provider => provider.GetRequiredService<TelegramBot>());
                 
                 // Регистрация VideoWatcher с фабрикой
                 services.AddSingleton<VideoWatcher>(provider =>
                 {
-                    var config = provider.GetRequiredService<IConfiguration>();
+                    var configuration = provider.GetRequiredService<IConfiguration>();
                     var logger = provider.GetRequiredService<ILogger<VideoWatcher>>();
                     var telegramBot = provider.GetRequiredService<ITelegramBotService>();
                     var timeHelper = provider.GetRequiredService<TimeHelper>();
                     var fileHelper = provider.GetRequiredService<FileHelper>();
                     
-                    var commonConfig = config.GetSection("Common").Get<CommonConfig>();
-                    var watcherConfig = config.GetSection("SnapshotWatcher").Get<SnapshotWatcherConfig>();
+                    var commonConfig = configuration.GetSection("Common").Get<CommonConfig>() ?? new CommonConfig();
+                    var watcherConfig = configuration.GetSection("SnapshotWatcher").Get<SnapshotWatcherConfig>() ?? new SnapshotWatcherConfig();
                     
                     // We'll create a factory function to get the repository when needed
                     IVideoRepository CreateVideoRepository()

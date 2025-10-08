@@ -42,7 +42,8 @@ namespace CountryTelegramBot
                 else
                     logger?.LogError($"Connection error");
                 // Автоматическое удаление битых записей при запуске
-                RemoveBrokenVideos();
+                if (IsConnected)
+                    RemoveBrokenVideos();
             }
             catch (Exception ex)
             {
@@ -107,5 +108,64 @@ namespace CountryTelegramBot
     
         }
    
+        // Report Status Methods
+        
+        /// <summary>
+        /// Adds a new report status record
+        /// </summary>
+        public async Task AddReportStatus(DateTime startDate, DateTime endDate, bool isSent, string? errorMessage = null)
+        {
+            var reportStatus = new ReportStatusModel
+            {
+                StartDate = startDate,
+                EndDate = endDate,
+                IsSent = isSent,
+                AttemptedAt = DateTime.Now,
+                SentAt = isSent ? DateTime.Now : (DateTime?)null,
+                ErrorMessage = errorMessage
+            };
+            
+            DbCountryContext.ReportStatus.Add(reportStatus);
+            await DbCountryContext.SaveChangesAsync();
+        }
+        
+        /// <summary>
+        /// Updates an existing report status record
+        /// </summary>
+        public async Task UpdateReportStatus(int id, bool isSent, string? errorMessage = null)
+        {
+            var reportStatus = await DbCountryContext.ReportStatus.FindAsync(id);
+            if (reportStatus != null)
+            {
+                reportStatus.IsSent = isSent;
+                reportStatus.AttemptedAt = DateTime.Now;
+                if (isSent)
+                    reportStatus.SentAt = DateTime.Now;
+                reportStatus.ErrorMessage = errorMessage;
+                
+                await DbCountryContext.SaveChangesAsync();
+            }
+        }
+        
+        /// <summary>
+        /// Gets all unsent reports
+        /// </summary>
+        public List<ReportStatusModel> GetUnsentReports()
+        {
+            return DbCountryContext.ReportStatus
+                .AsNoTracking()
+                .Where(r => !r.IsSent)
+                .ToList();
+        }
+        
+        /// <summary>
+        /// Gets report status by date range
+        /// </summary>
+        public ReportStatusModel? GetReportStatus(DateTime startDate, DateTime endDate)
+        {
+            return DbCountryContext.ReportStatus
+                .AsNoTracking()
+                .FirstOrDefault(r => r.StartDate == startDate && r.EndDate == endDate);
+        }
     }
 }
