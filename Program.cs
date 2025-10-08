@@ -16,13 +16,6 @@ internal class Program
 {
     public static async Task Main(string[] args)
     {
-        // Check if this is a test run
-        if (args.Length > 0 && args[0] == "--test-db")
-        {
-            TestDbContext.TestConnection();
-            return;
-        }
-
         var host = CreateHostBuilder(args).Build();
 
         try

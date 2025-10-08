@@ -1,20 +1,97 @@
-
 # Build output
 bin/
 obj/
+out/
 
 # User/IDE files
 *.user
 *.suo
+*.userosscache
+*.sln.docstates
 .vs/
 .vscode/
+.idea/
 
+# Code files
+*.mdf
+*.ldf
+*.ndf
 
 # Logs
 *.log
+*.logs
 
 # Temporary files
 *.tmp
 *.temp
+*.bak
+*.cache
+*.pidb
+*.userprefs
+*.usertasks
 
+# NuGet
+packages/
+*.nuget.props
+*.nuget.targets
 
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# Visual Studio
+*.pyc
+*.pyo
+*.dbmdl
+*.jfm
+*.jfm.user
+*.jfm.suo
+*.jfm.userosscache
+*.jfm.sln.docstates
+*.svcinfo
+*.svclog
+*.war
+*.ear
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Dotnet core
+.project
+*.csproj.user
+*.csproj~
+runtimeconfig.json
+runtimeconfig.dev.json
+
+# Test files
+TestDbContext.cs
+TestDatabaseConnection.csproj
+ProgramTest.cs
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.development
+
+# IDE files
+*.swp
+*.swo
+*~
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
