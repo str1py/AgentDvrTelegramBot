@@ -8,6 +8,7 @@ namespace CountryTelegramBot.Models
     {
         Task AddVideoData(string path, string grab);
         List<VideoModel> GetVideos(DateTime startDate, DateTime endDate);
+        Task<List<VideoModel>> GetVideosAsync(DateTime startDate, DateTime endDate); // Add this line
         Task<VideoModel> GetLastVideo();
         Task<bool> RemoveItemByPath(string path);
         bool IsConnected { get; }
@@ -17,5 +18,6 @@ namespace CountryTelegramBot.Models
         Task UpdateReportStatus(int id, bool isSent, string? errorMessage = null);
         List<ReportStatusModel> GetUnsentReports();
         ReportStatusModel? GetReportStatus(DateTime startDate, DateTime endDate);
+        Task<ReportStatusModel?> GetReportStatusAsync(DateTime startDate, DateTime endDate);
     }
 }

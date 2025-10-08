@@ -45,10 +45,9 @@ namespace CountryTelegramBot
         private readonly ITimeHelper timeHelper;
         private readonly IFileHelper fileHelper;
         private readonly IDailyScheduler dailyScheduler;
+        private readonly IDbConnection dbConnection;
 
-
-
-        public VideoWatcher(ITelegramBotService bot, IVideoRepository videoRepository, CountryTelegramBot.Configs.CommonConfig config, ITimeHelper timeHelper, IFileHelper fileHelper, IEnumerable<string>? watchFolders = null,
+        public VideoWatcher(ITelegramBotService bot, IVideoRepository videoRepository, CountryTelegramBot.Configs.CommonConfig config, ITimeHelper timeHelper, IFileHelper fileHelper, IDbConnection dbConnection, IEnumerable<string>? watchFolders = null,
         ILogger<VideoWatcher>? logger = null)
         {
             this.bot = bot ?? throw new ArgumentNullException(nameof(bot));
@@ -56,6 +55,7 @@ namespace CountryTelegramBot
             this.fileHelper = fileHelper ?? throw new ArgumentNullException(nameof(fileHelper));
             this.videoRepository = videoRepository ?? throw new ArgumentNullException(nameof(videoRepository));
             this.timeHelper = timeHelper ?? throw new ArgumentNullException(nameof(timeHelper));
+            this.dbConnection = dbConnection ?? throw new ArgumentNullException(nameof(dbConnection));
 
             watcherType = GetWatcherType(config.WatcherType ?? "ASAP");
 
@@ -73,7 +73,12 @@ namespace CountryTelegramBot
                 }
             }
             StartWatching();
-            dailyScheduler = new DailyScheduler(SendVideo);
+            dailyScheduler = new DailyScheduler(new TimerCallback[] { SendVideo, CheckReportsTimerCallback }); // Update this line
+        }
+        
+        private async void CheckReportsTimerCallback(object? state)
+        {
+            await CheckAndSendReportIfNeeded();
         }
 
         private async Task OnNewVideo(object sender, FileSystemEventArgs e)
@@ -140,6 +145,115 @@ namespace CountryTelegramBot
                 logger?.LogError(ex, $"Ошибка обработки нового видеофайла: {e.FullPath}");
             }
 
+        }
+
+        /// <summary>
+        /// Checks if a report was already sent today for the specified WatcherType
+        /// </summary>
+        /// <returns>True if report was sent today, false otherwise</returns>
+        private async Task<bool> WasReportSentToday()
+        {
+            try
+            {
+                var now = DateTime.Now;
+                DateTime startDate, endDate;
+                
+                // Determine the date range based on WatcherType
+                if (watcherType == WatcherType.Morning)
+                {
+                    // For Morning reports, check last night's period
+                    startDate = timeHelper.NightVideoStartDate.AddDays(-1);
+                    endDate = timeHelper.NightVideoEndDate.AddDays(-1);
+                }
+                else if (watcherType == WatcherType.MorningAndEvening)
+                {
+                    // For MorningAndEvening reports, check if either today's day or night period was reported
+                    // Check day period (morning to evening)
+                    startDate = timeHelper.DayVideoStartDate;
+                    endDate = timeHelper.DayVideoEndDate;
+                    
+                    // Check if day report was sent
+                    var dayReportStatus = await dbConnection.GetReportStatusAsync(startDate, endDate);
+                    if (dayReportStatus != null && dayReportStatus.IsSent && dayReportStatus.SentAt.HasValue && 
+                        dayReportStatus.SentAt.Value.Date == now.Date)
+                    {
+                        return true;
+                    }
+                    
+                    // Check night period (evening to next morning)
+                    startDate = timeHelper.NightVideoStartDate.AddDays(-1);
+                    endDate = timeHelper.NightVideoEndDate.AddDays(-1);
+                }
+                else
+                {
+                    // For ASAP type, we don't need to check daily reports
+                    return true;
+                }
+                
+                // Check if report was sent for the determined period
+                var reportStatus = await dbConnection.GetReportStatusAsync(startDate, endDate);
+                return reportStatus != null && reportStatus.IsSent && reportStatus.SentAt.HasValue && 
+                       reportStatus.SentAt.Value.Date == now.Date;
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Ошибка при проверке отправки отчета сегодня");
+                return false; // Assume not sent if there's an error
+            }
+        }
+
+        /// <summary>
+        /// Sends the report if it wasn't sent today and adds a record to the database
+        /// </summary>
+        private async Task CheckAndSendReportIfNeeded()
+        {
+            try
+            {
+                // Only check for Morning and MorningAndEvening watcher types
+                if (watcherType != WatcherType.Morning && watcherType != WatcherType.MorningAndEvening)
+                    return;
+
+                var wasSent = await WasReportSentToday();
+                if (!wasSent)
+                {
+                    logger?.LogInformation("Отчет за сегодня не был отправлен. Отправляю отчет...");
+                    
+                    // Determine the date range based on WatcherType
+                    if (watcherType == WatcherType.Morning)
+                    {
+                        // For Morning reports, send last night's videos
+                        var startDate = timeHelper.NightVideoStartDate.AddDays(-1);
+                        var endDate = timeHelper.NightVideoEndDate.AddDays(-1);
+                        var videos = await dbConnection.GetVideosAsync(startDate, endDate);
+                        await bot.SendVideoGroupAsync(videos, startDate, endDate);
+                    }
+                    else if (watcherType == WatcherType.MorningAndEvening)
+                    {
+                        // For MorningAndEvening reports, send both day and night videos
+                        // Send day videos (morning to evening)
+                        var dayStartDate = timeHelper.DayVideoStartDate;
+                        var dayEndDate = timeHelper.DayVideoEndDate;
+                        var dayVideos = await dbConnection.GetVideosAsync(dayStartDate, dayEndDate);
+                        await bot.SendVideoGroupAsync(dayVideos, dayStartDate, dayEndDate);
+                        
+                        // Send night videos (evening to next morning)
+                        var nightStartDate = timeHelper.NightVideoStartDate.AddDays(-1);
+                        var nightEndDate = timeHelper.NightVideoEndDate.AddDays(-1);
+                        var nightVideos = await dbConnection.GetVideosAsync(nightStartDate, nightEndDate);
+                        await bot.SendVideoGroupAsync(nightVideos, nightStartDate, nightEndDate);
+                    }
+                    
+                    logger?.LogInformation("Отчет отправлен и запись в БД добавлена.");
+                }
+                else
+                {
+                    logger?.LogInformation("Отчет за сегодня уже был отправлен.");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Ошибка при проверке и отправке отчета");
+            }
         }
 
 

@@ -88,6 +88,14 @@ namespace CountryTelegramBot
                 .Where(v => v.Date >= startDate && v.Date <= endDate)
                 .ToList();
         }
+        
+        public async Task<List<VideoModel>> GetVideosAsync(DateTime startDate, DateTime endDate)
+        {
+            return await DbCountryContext.Video
+                .AsNoTracking()
+                .Where(v => v.Date >= startDate && v.Date <= endDate)
+                .ToListAsync();
+        }
        
         public async Task<VideoModel> GetLastVideo()
         {
@@ -166,6 +174,16 @@ namespace CountryTelegramBot
             return DbCountryContext.ReportStatus
                 .AsNoTracking()
                 .FirstOrDefault(r => r.StartDate == startDate && r.EndDate == endDate);
+        }
+        
+        /// <summary>
+        /// Gets report status by date range asynchronously
+        /// </summary>
+        public async Task<ReportStatusModel?> GetReportStatusAsync(DateTime startDate, DateTime endDate)
+        {
+            return await DbCountryContext.ReportStatus
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.StartDate == startDate && r.EndDate == endDate);
         }
     }
 }

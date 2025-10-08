@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.EntityFrameworkCore;
+﻿﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -270,18 +270,13 @@ internal class Program
                     var telegramBot = provider.GetRequiredService<ITelegramBotService>();
                     var timeHelper = provider.GetRequiredService<TimeHelper>();
                     var fileHelper = provider.GetRequiredService<FileHelper>();
+                    var dbConnection = provider.GetRequiredService<IDbConnection>();
+                    var videoRepository = provider.GetRequiredService<IVideoRepository>(); // Add this line
                     
                     var commonConfig = configuration.GetSection("Common").Get<CommonConfig>() ?? new CommonConfig();
                     var watcherConfig = configuration.GetSection("SnapshotWatcher").Get<SnapshotWatcherConfig>() ?? new SnapshotWatcherConfig();
                     
-                    // We'll create a factory function to get the repository when needed
-                    IVideoRepository CreateVideoRepository()
-                    {
-                        var scope = provider.CreateScope();
-                        return scope.ServiceProvider.GetRequiredService<IVideoRepository>();
-                    }
-                    
-                    return new VideoWatcher(telegramBot, CreateVideoRepository(), commonConfig, timeHelper, fileHelper, watcherConfig.Folders, logger);
+                    return new VideoWatcher(telegramBot, videoRepository, commonConfig, timeHelper, fileHelper, dbConnection, watcherConfig.Folders, logger);
                 });
                 
                 // Настройка HttpClient
