@@ -154,9 +154,13 @@ namespace CountryTelegramBot
                 reportStatus.IsSent = isSent;
                 reportStatus.AttemptedAt = DateTime.Now;
                 if (isSent)
+                {
                     reportStatus.SentAt = DateTime.Now;
+                    logger?.LogInformation($"Установка времени отправки: {reportStatus.SentAt}");
+                }
                 reportStatus.ErrorMessage = errorMessage;
                 
+                DbCountryContext.ReportStatus.Update(reportStatus);
                 await DbCountryContext.SaveChangesAsync();
                 
                 logger?.LogInformation($"Статус отчета успешно обновлен в БД (ID: {id})");
@@ -178,6 +182,13 @@ namespace CountryTelegramBot
                 .Where(r => !r.IsSent)
                 .ToList();
             logger?.LogInformation($"Найдено {unsentReports.Count} неотправленных отчетов");
+            
+            // Логируем информацию о каждом неотправленном отчете
+            foreach (var report in unsentReports)
+            {
+                logger?.LogInformation($"Неотправленный отчет (ID: {report.Id}): {report.StartDate} - {report.EndDate}");
+            }
+            
             return unsentReports;
         }
         

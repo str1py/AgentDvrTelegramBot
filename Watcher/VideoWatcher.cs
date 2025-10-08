@@ -84,6 +84,82 @@ namespace CountryTelegramBot
             dailyScheduler = new DailyScheduler(new TimerCallback[] { SendVideo, CheckReportsTimerCallback });
         }
 
+        
+        /// <summary>
+        /// Проверяет, был ли отчет отправлен сегодня для указанного типа наблюдателя
+        /// </summary>
+        /// <returns>True, если отчет был отправлен сегодня, иначе false</returns>
+        private async Task<bool> WasReportSentToday()
+        {
+            try
+            {
+                var now = DateTime.Now;
+                DateTime startDate, endDate;
+                
+                // Определяем период времени в зависимости от типа наблюдателя
+                if (watcherType == WatcherType.Morning)
+                {
+                    // Для утренних отчетов проверяем период прошлой ночи
+                    startDate = timeHelper.NightVideoStartDate.AddDays(-1);
+                    endDate = timeHelper.NightVideoEndDate.AddDays(-1);
+                    logger?.LogInformation($"Проверка утреннего отчета за период: {startDate} - {endDate}");
+                }
+                else if (watcherType == WatcherType.MorningAndEvening)
+                {
+                    // Для утренне-вечерних отчетов проверяем, был ли отправлен отчет за дневной или ночной период
+                    // Проверяем дневной период (с утра до вечера)
+                    startDate = timeHelper.DayVideoStartDate;
+                    endDate = timeHelper.DayVideoEndDate;
+                    logger?.LogInformation($"Проверка дневного отчета за период: {startDate} - {endDate}");
+                    
+                    // Проверяем, был ли отправлен дневной отчет
+                    var dayReportStatus = await dbConnection.GetReportStatusAsync(startDate, endDate);
+                    if (dayReportStatus != null && dayReportStatus.IsSent && dayReportStatus.SentAt.HasValue && 
+                        dayReportStatus.SentAt.Value.Date == now.Date)
+                    {
+                        logger?.LogInformation("Дневной отчет уже был отправлен сегодня");
+                        return true;
+                    }
+                    
+                    // Проверяем ночной период (с вечера до следующего утра)
+                    startDate = timeHelper.NightVideoStartDate.AddDays(-1);
+                    endDate = timeHelper.NightVideoEndDate.AddDays(-1);
+                    logger?.LogInformation($"Проверка ночного отчета за период: {startDate} - {endDate}");
+                }
+                else
+                {
+                    // Для типа ASAP ежедневные отчеты не требуются
+                    logger?.LogInformation("Для типа ASAP ежедневные отчеты не требуются");
+                    return true;
+                }
+                
+                // Проверяем, был ли отправлен отчет за определенный период
+                var reportStatus = await dbConnection.GetReportStatusAsync(startDate, endDate);
+                var wasSent = reportStatus != null && reportStatus.IsSent && reportStatus.SentAt.HasValue && 
+                       reportStatus.SentAt.Value.Date == now.Date;
+                
+                if (wasSent)
+                {
+                    logger?.LogInformation("Отчет уже был отправлен сегодня");
+                }
+                else
+                {
+                    logger?.LogInformation("Отчет еще не был отправлен сегодня");
+                    if (reportStatus != null)
+                    {
+                        logger?.LogInformation($"Текущий статус отчета (ID: {reportStatus.Id}): Отправлено={reportStatus.IsSent}, Время отправки={reportStatus.SentAt}");
+                    }
+                }
+                
+                return wasSent;
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Ошибка при проверке отправки отчета сегодня");
+                return false; // Предполагаем, что отчет не отправлен, если произошла ошибка
+            }
+        }
+
         private async Task OnNewVideo(object sender, FileSystemEventArgs e)
         {
             try
@@ -148,77 +224,6 @@ namespace CountryTelegramBot
                 logger?.LogError(ex, $"Ошибка обработки нового видеофайла: {e.FullPath}");
             }
 
-        }
-
-        /// <summary>
-        /// Проверяет, был ли отчет отправлен сегодня для указанного типа наблюдателя
-        /// </summary>
-        /// <returns>True, если отчет был отправлен сегодня, иначе false</returns>
-        private async Task<bool> WasReportSentToday()
-        {
-            try
-            {
-                var now = DateTime.Now;
-                DateTime startDate, endDate;
-                
-                // Определяем период времени в зависимости от типа наблюдателя
-                if (watcherType == WatcherType.Morning)
-                {
-                    // Для утренних отчетов проверяем период прошлой ночи
-                    startDate = timeHelper.NightVideoStartDate.AddDays(-1);
-                    endDate = timeHelper.NightVideoEndDate.AddDays(-1);
-                    logger?.LogInformation($"Проверка утреннего отчета за период: {startDate} - {endDate}");
-                }
-                else if (watcherType == WatcherType.MorningAndEvening)
-                {
-                    // Для утренне-вечерних отчетов проверяем, был ли отправлен отчет за дневной или ночной период
-                    // Проверяем дневной период (с утра до вечера)
-                    startDate = timeHelper.DayVideoStartDate;
-                    endDate = timeHelper.DayVideoEndDate;
-                    logger?.LogInformation($"Проверка дневного отчета за период: {startDate} - {endDate}");
-                    
-                    // Проверяем, был ли отправлен дневной отчет
-                    var dayReportStatus = await dbConnection.GetReportStatusAsync(startDate, endDate);
-                    if (dayReportStatus != null && dayReportStatus.IsSent && dayReportStatus.SentAt.HasValue && 
-                        dayReportStatus.SentAt.Value.Date == now.Date)
-                    {
-                        logger?.LogInformation("Дневной отчет уже был отправлен сегодня");
-                        return true;
-                    }
-                    
-                    // Проверяем ночной период (с вечера до следующего утра)
-                    startDate = timeHelper.NightVideoStartDate.AddDays(-1);
-                    endDate = timeHelper.NightVideoEndDate.AddDays(-1);
-                    logger?.LogInformation($"Проверка ночного отчета за период: {startDate} - {endDate}");
-                }
-                else
-                {
-                    // Для типа ASAP ежедневные отчеты не требуются
-                    logger?.LogInformation("Для типа ASAP ежедневные отчеты не требуются");
-                    return true;
-                }
-                
-                // Проверяем, был ли отправлен отчет за определенный период
-                var reportStatus = await dbConnection.GetReportStatusAsync(startDate, endDate);
-                var wasSent = reportStatus != null && reportStatus.IsSent && reportStatus.SentAt.HasValue && 
-                       reportStatus.SentAt.Value.Date == now.Date;
-                
-                if (wasSent)
-                {
-                    logger?.LogInformation("Отчет уже был отправлен сегодня");
-                }
-                else
-                {
-                    logger?.LogInformation("Отчет еще не был отправлен сегодня");
-                }
-                
-                return wasSent;
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex, "Ошибка при проверке отправки отчета сегодня");
-                return false; // Предполагаем, что отчет не отправлен, если произошла ошибка
-            }
         }
 
         /// <summary>

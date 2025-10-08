@@ -115,7 +115,7 @@ internal class Program
             {
                 try
                 {
-                    logger.LogInformation($"Попытка отправки отчета за период {report.StartDate} - {report.EndDate}");
+                    logger.LogInformation($"Попытка отправки отчета за период {report.StartDate} - {report.EndDate} (ID: {report.Id})");
                         
                     // Получаем видео для этого периода отчета
                     var videos = await videoRepository.GetVideosAsync(report.StartDate, report.EndDate);
@@ -123,11 +123,11 @@ internal class Program
                     // Отправляем отчет
                     await telegramBotService.SendVideoGroupAsync(videos, report.StartDate, report.EndDate);
                         
-                    logger.LogInformation($"Отчет за период {report.StartDate} - {report.EndDate} успешно отправлен");
+                    logger.LogInformation($"Отчет за период {report.StartDate} - {report.EndDate} (ID: {report.Id}) успешно отправлен");
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, $"Ошибка при отправке отчета за период {report.StartDate} - {report.EndDate}");
+                    logger.LogError(ex, $"Ошибка при отправке отчета за период {report.StartDate} - {report.EndDate} (ID: {report.Id})");
                 }
             }
         }
