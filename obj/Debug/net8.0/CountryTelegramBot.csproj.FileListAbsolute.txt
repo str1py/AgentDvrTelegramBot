@@ -396,5 +396,5 @@ C:\Users\rdp.wonderland-ch\Desktop\AgentDvrTelegramBot\bin\Debug\net8.0\ru\Micro
 C:\Users\rdp.wonderland-ch\Desktop\AgentDvrTelegramBot\bin\Debug\net8.0\tr\Microsoft.CodeAnalysis.Workspaces.resources.dll
 C:\Users\rdp.wonderland-ch\Desktop\AgentDvrTelegramBot\bin\Debug\net8.0\zh-Hans\Microsoft.CodeAnalysis.Workspaces.resources.dll
 C:\Users\rdp.wonderland-ch\Desktop\AgentDvrTelegramBot\bin\Debug\net8.0\zh-Hant\Microsoft.CodeAnalysis.Workspaces.resources.dll
-C:\Users\Administrator\Documents\GitHub\AgentDvrTelegramBot\bin\Debug\net8.0\FFMpegCore.dll
-C:\Users\Administrator\Documents\GitHub\AgentDvrTelegramBot\bin\Debug\net8.0\Instances.dll
+C:\Users\rdp.wonderland-ch\Desktop\AgentDvrTelegramBot\bin\Debug\net8.0\FFMpegCore.dll
+C:\Users\rdp.wonderland-ch\Desktop\AgentDvrTelegramBot\bin\Debug\net8.0\Instances.dll
