@@ -218,6 +218,20 @@ internal class Program
                     return new ReportService(dbConnection, telegramBotService, videoRepository, timeHelper, logger);
                 });
                 
+                // Регистрация TestReportService
+                services.AddSingleton<ITestReportService, TestReportService>(provider =>
+                {
+                    var telegramBotService = provider.GetRequiredService<ITelegramBotService>();
+                    var videoRepository = provider.GetRequiredService<IVideoRepository>();
+                    var timeHelper = provider.GetRequiredService<TimeHelper>();
+                    var reportService = provider.GetRequiredService<IReportService>();
+                    var configuration = provider.GetRequiredService<IConfiguration>();
+                    var commonConfig = configuration.GetSection("Common").Get<CountryTelegramBot.Configs.CommonConfig>() ?? new CountryTelegramBot.Configs.CommonConfig();
+                    var logger = provider.GetRequiredService<ILogger<TestReportService>>();
+                    
+                    return new TestReportService(telegramBotService, videoRepository, timeHelper, reportService, commonConfig, logger);
+                });
+
                 // Регистрация AppInitializationService
                 services.AddSingleton<IAppInitializationService, AppInitializationService>(provider =>
                 {

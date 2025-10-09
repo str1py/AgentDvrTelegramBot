@@ -4733,7 +4733,7 @@
   },
   "projectFileDependencyGroups": {
     "net8.0": [
-      "FFMpegCore >= 5.2.0",
+      "FFmpegCore >= 5.2.0",
       "Microsoft.EntityFrameworkCore >= 8.0.13",
       "Microsoft.EntityFrameworkCore.Abstractions >= 8.0.13",
       "Microsoft.EntityFrameworkCore.Design >= 8.0.13",
@@ -4794,7 +4794,7 @@
       "net8.0": {
         "targetAlias": "net8.0",
         "dependencies": {
-          "FFMpegCore": {
+          "FFmpegCore": {
             "target": "Package",
             "version": "[5.2.0, )"
           },

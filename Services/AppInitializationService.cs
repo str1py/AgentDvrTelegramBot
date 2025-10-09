@@ -48,11 +48,8 @@ namespace CountryTelegramBot.Services
             // Инициализируем AgentDVR
             await InitializeAgentDvr();
 
-            // Отправляем тестовый отчет (если нужно)
-           // await SendTestReport();
-
-            // Проверяем и отправляем отчеты за сегодня
-            await CheckAndSendTodaysReports();
+            // Запускаем периодическую проверку неотправленных отчетов
+            _reportService.StartPeriodicCheck();
 
             _logger.LogInformation("Инициализация приложения завершена");
         }
@@ -87,73 +84,6 @@ namespace CountryTelegramBot.Services
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Ошибка инициализации AgentDVR. Продолжаем работу.");
-            }
-        }
-
-        private async Task SendTestReport()
-        {
-            try
-            {
-                _logger.LogInformation("ТЕСТ: Отправка последнего отчета");
-                
-                // Определяем период для последнего отчета (прошлая ночь)
-                var startDate = _timeHelper.NightVideoStartDate.AddDays(-1);
-                var endDate = _timeHelper.NightVideoEndDate.AddDays(-1);
-                
-                _logger.LogInformation($"ТЕСТ: Получение видео за период {startDate} - {endDate}");
-                
-                // Получаем видео за последний период
-                var videos = await _videoRepository.GetVideosAsync(startDate, endDate);
-                
-                if (videos.Count > 0)
-                {
-                    _logger.LogInformation($"ТЕСТ: Найдено {videos.Count} видео. Отправка отчета...");
-                    
-                    // Отправляем отчет
-                    await _telegramBotService.SendVideoGroupAsync(videos, startDate, endDate);
-                    
-                    _logger.LogInformation("ТЕСТ: Последний отчет успешно отправлен");
-                }
-                else
-                {
-                    _logger.LogInformation("ТЕСТ: Нет видео для отправки в последнем отчете");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "ТЕСТ: Ошибка при отправке последнего отчета");
-            }
-        }
-
-        private async Task CheckAndSendTodaysReports()
-        {
-            try
-            {
-                // Получаем тип наблюдателя из конфигурации
-                var watcherType = GetWatcherType(_commonConfig.WatcherType ?? "ASAP");
-                
-                await _reportService.CheckAndSendTodaysReports(watcherType);
-                _reportService.StartPeriodicCheck();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Ошибка при проверке и отправке отчетов за сегодня. Продолжаем работу.");
-            }
-        }
-
-        private CountryTelegramBot.Services.WatcherType GetWatcherType(string type)
-        {
-            if (type == "ASAP")
-            {
-                return CountryTelegramBot.Services.WatcherType.ASAP;
-            }
-            else if (type == "Morning")
-            {
-                return CountryTelegramBot.Services.WatcherType.Morning;
-            }
-            else
-            {
-                return CountryTelegramBot.Services.WatcherType.MorningAndEvening;
             }
         }
     }
