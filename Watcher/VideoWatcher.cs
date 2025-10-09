@@ -35,28 +35,27 @@ namespace CountryTelegramBot
             logger?.LogInformation("Наблюдение остановлено.");
         }
 
-        private enum WatcherType
-        {
-            ASAP,
-            Morning,
-            MorningAndEvening
-        }
         private readonly List<string> folders;
         private readonly List<FileSystemWatcher> watchers;
         private readonly ITelegramBotService bot;
         private readonly ILogger<VideoWatcher>? logger;
         private IVideoRepository videoRepository;
-        private WatcherType watcherType;
+        private CountryTelegramBot.Services.WatcherType watcherType;
         private bool disposed;
         private readonly ITimeHelper timeHelper;
         private readonly IFileHelper fileHelper;
         private readonly IDailyScheduler dailyScheduler;
         private readonly IDbConnection dbConnection;
 
-
-
-        public VideoWatcher(ITelegramBotService bot, IVideoRepository videoRepository, CountryTelegramBot.Configs.CommonConfig config, ITimeHelper timeHelper, IFileHelper fileHelper, IDbConnection dbConnection, IEnumerable<string>? watchFolders = null,
-        ILogger<VideoWatcher>? logger = null)
+        public VideoWatcher(
+            ITelegramBotService bot, 
+            IVideoRepository videoRepository, 
+            CountryTelegramBot.Configs.CommonConfig config, 
+            ITimeHelper timeHelper, 
+            IFileHelper fileHelper, 
+            IDbConnection dbConnection, 
+            IEnumerable<string>? watchFolders = null,
+            ILogger<VideoWatcher>? logger = null)
         {
             this.bot = bot ?? throw new ArgumentNullException(nameof(bot));
             this.logger = logger;
@@ -81,83 +80,7 @@ namespace CountryTelegramBot
                 }
             }
             StartWatching();
-            dailyScheduler = new DailyScheduler(new TimerCallback[] { SendVideo, CheckReportsTimerCallback });
-        }
-
-        
-        /// <summary>
-        /// Проверяет, был ли отчет отправлен сегодня для указанного типа наблюдателя
-        /// </summary>
-        /// <returns>True, если отчет был отправлен сегодня, иначе false</returns>
-        private async Task<bool> WasReportSentToday()
-        {
-            try
-            {
-                var now = DateTime.Now;
-                DateTime startDate, endDate;
-                
-                // Определяем период времени в зависимости от типа наблюдателя
-                if (watcherType == WatcherType.Morning)
-                {
-                    // Для утренних отчетов проверяем период прошлой ночи
-                    startDate = timeHelper.NightVideoStartDate.AddDays(-1);
-                    endDate = timeHelper.NightVideoEndDate.AddDays(-1);
-                    logger?.LogInformation($"Проверка утреннего отчета за период: {startDate} - {endDate}");
-                }
-                else if (watcherType == WatcherType.MorningAndEvening)
-                {
-                    // Для утренне-вечерних отчетов проверяем, был ли отправлен отчет за дневной или ночной период
-                    // Проверяем дневной период (с утра до вечера)
-                    startDate = timeHelper.DayVideoStartDate;
-                    endDate = timeHelper.DayVideoEndDate;
-                    logger?.LogInformation($"Проверка дневного отчета за период: {startDate} - {endDate}");
-                    
-                    // Проверяем, был ли отправлен дневной отчет
-                    var dayReportStatus = await dbConnection.GetReportStatusAsync(startDate, endDate);
-                    if (dayReportStatus != null && dayReportStatus.IsSent && dayReportStatus.SentAt.HasValue && 
-                        dayReportStatus.SentAt.Value.Date == now.Date)
-                    {
-                        logger?.LogInformation("Дневной отчет уже был отправлен сегодня");
-                        return true;
-                    }
-                    
-                    // Проверяем ночной период (с вечера до следующего утра)
-                    startDate = timeHelper.NightVideoStartDate.AddDays(-1);
-                    endDate = timeHelper.NightVideoEndDate.AddDays(-1);
-                    logger?.LogInformation($"Проверка ночного отчета за период: {startDate} - {endDate}");
-                }
-                else
-                {
-                    // Для типа ASAP ежедневные отчеты не требуются
-                    logger?.LogInformation("Для типа ASAP ежедневные отчеты не требуются");
-                    return true;
-                }
-                
-                // Проверяем, был ли отправлен отчет за определенный период
-                var reportStatus = await dbConnection.GetReportStatusAsync(startDate, endDate);
-                var wasSent = reportStatus != null && reportStatus.IsSent && reportStatus.SentAt.HasValue && 
-                       reportStatus.SentAt.Value.Date == now.Date;
-                
-                if (wasSent)
-                {
-                    logger?.LogInformation("Отчет уже был отправлен сегодня");
-                }
-                else
-                {
-                    logger?.LogInformation("Отчет еще не был отправлен сегодня");
-                    if (reportStatus != null)
-                    {
-                        logger?.LogInformation($"Текущий статус отчета (ID: {reportStatus.Id}): Отправлено={reportStatus.IsSent}, Время отправки={reportStatus.SentAt}");
-                    }
-                }
-                
-                return wasSent;
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex, "Ошибка при проверке отправки отчета сегодня");
-                return false; // Предполагаем, что отчет не отправлен, если произошла ошибка
-            }
+            dailyScheduler = new DailyScheduler(SendVideo);
         }
 
         private async Task OnNewVideo(object sender, FileSystemEventArgs e)
@@ -205,7 +128,7 @@ namespace CountryTelegramBot
                     logger?.LogWarning(ex, $"Не удалось добавить запись в базу данных: {path}");
                 }
 
-                if (watcherType == WatcherType.ASAP && grab != null)
+                if (watcherType == CountryTelegramBot.Services.WatcherType.ASAP && grab != null)
                 {
                     try
                     {
@@ -223,98 +146,6 @@ namespace CountryTelegramBot
             {
                 logger?.LogError(ex, $"Ошибка обработки нового видеофайла: {e.FullPath}");
             }
-
-        }
-
-        /// <summary>
-        /// Отправляет отчет, если он не был отправлен сегодня, и добавляет запись в базу данных
-        /// </summary>
-        private async Task CheckAndSendReportIfNeeded()
-        {
-            try
-            {
-                // Проверяем только для типов наблюдателей Morning и MorningAndEvening
-                if (watcherType != WatcherType.Morning && watcherType != WatcherType.MorningAndEvening)
-                    return;
-
-                var wasSent = await WasReportSentToday();
-                if (!wasSent)
-                {
-                    logger?.LogInformation("Отчет за сегодня не был отправлен. Отправляю отчет...");
-                    
-                    // Определяем период времени в зависимости от типа наблюдателя
-                    if (watcherType == WatcherType.Morning)
-                    {
-                        // Для утренних отчетов отправляем видео за прошлую ночь
-                        var startDate = timeHelper.NightVideoStartDate.AddDays(-1);
-                        var endDate = timeHelper.NightVideoEndDate.AddDays(-1);
-                        logger?.LogInformation($"Отправка утреннего отчета за период: {startDate} - {endDate}");
-                        
-                        // Добавляем запись в БД с IsSent = false перед отправкой
-                        await AddPendingReportStatus(startDate, endDate);
-                        
-                        var videos = await dbConnection.GetVideosAsync(startDate, endDate);
-                        await bot.SendVideoGroupAsync(videos, startDate, endDate);
-                    }
-                    else if (watcherType == WatcherType.MorningAndEvening)
-                    {
-                        // Для утренне-вечерних отчетов отправляем видео за дневной и ночной периоды
-                        // Отправляем дневные видео (с утра до вечера)
-                        var dayStartDate = timeHelper.DayVideoStartDate;
-                        var dayEndDate = timeHelper.DayVideoEndDate;
-                        logger?.LogInformation($"Отправка дневного отчета за период: {dayStartDate} - {dayEndDate}");
-                        
-                        // Добавляем запись в БД с IsSent = false перед отправкой
-                        await AddPendingReportStatus(dayStartDate, dayEndDate);
-                        
-                        var dayVideos = await dbConnection.GetVideosAsync(dayStartDate, dayEndDate);
-                        await bot.SendVideoGroupAsync(dayVideos, dayStartDate, dayEndDate);
-                        
-                        // Отправляем ночные видео (с вечера до следующего утра)
-                        var nightStartDate = timeHelper.NightVideoStartDate.AddDays(-1);
-                        var nightEndDate = timeHelper.NightVideoEndDate.AddDays(-1);
-                        logger?.LogInformation($"Отправка ночного отчета за период: {nightStartDate} - {nightEndDate}");
-                        
-                        // Добавляем запись в БД с IsSent = false перед отправкой
-                        await AddPendingReportStatus(nightStartDate, nightEndDate);
-                        
-                        var nightVideos = await dbConnection.GetVideosAsync(nightStartDate, nightEndDate);
-                        await bot.SendVideoGroupAsync(nightVideos, nightStartDate, nightEndDate);
-                    }
-                    
-                    logger?.LogInformation("Отчет отправлен и запись в БД добавлена.");
-                }
-                else
-                {
-                    logger?.LogInformation("Отчет за сегодня уже был отправлен.");
-                }
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex, "Ошибка при проверке и отправке отчета");
-            }
-        }
-        
-        /// <summary>
-        /// Добавляет запись о попытке отправки отчета с IsSent = false
-        /// </summary>
-        private async Task AddPendingReportStatus(DateTime startDate, DateTime endDate)
-        {
-            try
-            {
-                // Проверяем, есть ли уже запись для этого периода отчета
-                var existingReportStatus = await dbConnection.GetReportStatusAsync(startDate, endDate);
-                if (existingReportStatus == null)
-                {
-                    // Создаем новую запись с IsSent = false
-                    await dbConnection.AddReportStatus(startDate, endDate, false, null);
-                    logger?.LogInformation($"Добавлена запись о попытке отправки отчета: {startDate} - {endDate}");
-                }
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex, "Ошибка при добавлении записи о попытке отправки отчета");
-            }
         }
 
         private async void SendVideo(object? state)
@@ -323,7 +154,7 @@ namespace CountryTelegramBot
             {
                 var now = DateTime.Now;
                 logger?.LogInformation($"{DateTime.Now.ToShortTimeString()}: Тик в SendVideo (WatcherType: {watcherType})");
-                if (watcherType == WatcherType.Morning)
+                if (watcherType == CountryTelegramBot.Services.WatcherType.Morning)
                 {
                     if (now >= timeHelper.MorningReport)
                     {
@@ -334,7 +165,7 @@ namespace CountryTelegramBot
                         timeHelper.CalculateNextMorningReport();
                     }
                 }
-                else if (watcherType == WatcherType.MorningAndEvening)
+                else if (watcherType == CountryTelegramBot.Services.WatcherType.MorningAndEvening)
                 {
                     if (now >= timeHelper.EveningReport)
                     {
@@ -357,12 +188,6 @@ namespace CountryTelegramBot
                 logger?.LogError(ex, "Ошибка в методе SendVideo");
             }
         }
-        
-        private async void CheckReportsTimerCallback(object? state)
-        {
-            await CheckAndSendReportIfNeeded();
-        }
-
 
         private string? GetLastGrab(string? folderPath)
         {
@@ -395,24 +220,25 @@ namespace CountryTelegramBot
             }
         }
 
-        private WatcherType GetWatcherType(string type)
+        private CountryTelegramBot.Services.WatcherType GetWatcherType(string type)
         {
             if (type == "ASAP")
             {
                 logger?.LogInformation("Выбранный метод отчета: ASAP (отправка отчетов в реальном времени)");
-                return WatcherType.ASAP;
+                return CountryTelegramBot.Services.WatcherType.ASAP;
             }
             else if (type == "Morning")
             {
                 logger?.LogInformation("Выбранный метод отчета: Morning (отправка отчетов в утром)");
-                return WatcherType.Morning;
+                return CountryTelegramBot.Services.WatcherType.Morning;
             }
             else
             {
                 logger?.LogInformation("Выбранный метод отчета: MorningAndEvening (отправка отчетов в утром и вечером)");
-                return WatcherType.MorningAndEvening;
+                return CountryTelegramBot.Services.WatcherType.MorningAndEvening;
             }
         }
+
         public void Dispose()
         {
             //if (disposed) return;

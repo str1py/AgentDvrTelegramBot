@@ -1,4 +1,4 @@
-﻿﻿﻿﻿using Microsoft.EntityFrameworkCore;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -25,53 +25,11 @@ internal class Program
 
             logger.LogInformation("Запуск AgentDvrTelegramBot...");
 
-            // Проверяем подключение к базе данных (сделаем это необязательным для тестирования)
-            try
+            // Инициализируем приложение через сервис
+            var appInitializationService = scope.ServiceProvider.GetService<IAppInitializationService>();
+            if (appInitializationService != null)
             {
-                var dbContext = scope.ServiceProvider.GetService<DbCountryContext>();
-                if (dbContext != null && await dbContext.Database.CanConnectAsync())
-                {
-                    logger.LogInformation("Подключение к базе данных установлено успешно");
-                }
-                else
-                {
-                    logger.LogWarning("Не удалось подключиться к базе данных. Продолжаем работу без базы данных.");
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Ошибка подключения к базе данных. Продолжаем работу без базы данных.");
-            }
-
-            // Инициализируем AgentDVR
-            try
-            {
-                var agentDvr = scope.ServiceProvider.GetService<AgentDVR>();
-                if (agentDvr != null)
-                {
-                    await agentDvr.InitializeAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Ошибка инициализации AgentDVR. Продолжаем работу.");
-            }
-
-            // Проверяем наличие неотправленных отчетов и пытаемся отправить их
-            try
-            {
-                var dbConnection = scope.ServiceProvider.GetService<IDbConnection>();
-                var telegramBotService = scope.ServiceProvider.GetService<ITelegramBotService>();
-                var videoRepository = scope.ServiceProvider.GetService<IVideoRepository>();
-                    
-                if (dbConnection != null && telegramBotService != null && videoRepository != null)
-                {
-                    await SendUnsentReports(dbConnection, telegramBotService, videoRepository, logger);
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Ошибка при отправке неотправленных отчетов. Продолжаем работу.");
+                await appInitializationService.InitializeAsync();
             }
 
             // Запускаем VideoWatcher
@@ -87,6 +45,7 @@ internal class Program
             {
                 await telegramBot.StartBot();
             }
+            
             // Приложение продолжает работу
             logger.LogInformation("Приложение запущено и продолжает работу. Нажмите Ctrl+C для завершения.");
                 
@@ -98,42 +57,6 @@ internal class Program
             var logger = host.Services.GetService<ILogger<Program>>();
             logger?.LogError(ex, "Критическая ошибка при запуске приложения");
             throw;
-        }
-    }
-        
-    /// <summary>
-    /// Проверяет наличие неотправленных отчетов и пытается отправить их
-    /// </summary>
-    private static async Task SendUnsentReports(CountryTelegramBot.Models.IDbConnection dbConnection, ITelegramBotService telegramBotService, IVideoRepository videoRepository, ILogger logger)
-    {
-        try
-        {
-            var unsentReports = dbConnection.GetUnsentReports();
-            logger.LogInformation($"Найдено {unsentReports.Count} неотправленных отчетов");
-                
-            foreach (var report in unsentReports)
-            {
-                try
-                {
-                    logger.LogInformation($"Попытка отправки отчета за период {report.StartDate} - {report.EndDate} (ID: {report.Id})");
-                        
-                    // Получаем видео для этого периода отчета
-                    var videos = await videoRepository.GetVideosAsync(report.StartDate, report.EndDate);
-                        
-                    // Отправляем отчет
-                    await telegramBotService.SendVideoGroupAsync(videos, report.StartDate, report.EndDate);
-                        
-                    logger.LogInformation($"Отчет за период {report.StartDate} - {report.EndDate} (ID: {report.Id}) успешно отправлен");
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, $"Ошибка при отправке отчета за период {report.StartDate} - {report.EndDate} (ID: {report.Id})");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Ошибка при проверке неотправленных отчетов");
         }
     }
 
@@ -276,6 +199,34 @@ internal class Program
                     var watcherConfig = configuration.GetSection("SnapshotWatcher").Get<SnapshotWatcherConfig>() ?? new SnapshotWatcherConfig();
                     
                     return new VideoWatcher(telegramBot, videoRepository, commonConfig, timeHelper, fileHelper, dbConnection, watcherConfig.Folders, logger);
+                });
+                
+                // Регистрация ReportService
+                services.AddSingleton<IReportService, ReportService>(provider =>
+                {
+                    var dbConnection = provider.GetRequiredService<IDbConnection>();
+                    var telegramBotService = provider.GetRequiredService<ITelegramBotService>();
+                    var videoRepository = provider.GetRequiredService<IVideoRepository>();
+                    var timeHelper = provider.GetRequiredService<TimeHelper>();
+                    var logger = provider.GetRequiredService<ILogger<ReportService>>();
+                    
+                    return new ReportService(dbConnection, telegramBotService, videoRepository, timeHelper, logger);
+                });
+                
+                // Регистрация AppInitializationService
+                services.AddSingleton<IAppInitializationService, AppInitializationService>(provider =>
+                {
+                    var dbConnection = provider.GetRequiredService<IDbConnection>();
+                    var telegramBotService = provider.GetRequiredService<ITelegramBotService>();
+                    var videoRepository = provider.GetRequiredService<IVideoRepository>();
+                    var timeHelper = provider.GetRequiredService<TimeHelper>();
+                    var reportService = provider.GetRequiredService<IReportService>();
+                    var agentDvr = provider.GetRequiredService<AgentDVR>();
+                    var configuration = provider.GetRequiredService<IConfiguration>();
+                    var commonConfig = configuration.GetSection("Common").Get<CountryTelegramBot.Configs.CommonConfig>() ?? new CountryTelegramBot.Configs.CommonConfig();
+                    var logger = provider.GetRequiredService<ILogger<AppInitializationService>>();
+                    
+                    return new AppInitializationService(dbConnection, telegramBotService, videoRepository, timeHelper, reportService, agentDvr, commonConfig, logger);
                 });
                 
                 // Настройка HttpClient

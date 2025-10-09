@@ -24,7 +24,7 @@ namespace CountryTelegramBot
                 if (IsConnected)
                     logger?.LogInformation($"Подключение к базе данных установлено успешно! Строка подключения: {MaskSecret(options?.ToString())}");
                 else
-                    logger?.LogError($"Ошибка подключения");
+                    logger?.LogError("Ошибка подключения");
                 // Автоматическое удаление битых записей при запуске
                 if (IsConnected)
                     RemoveBrokenVideos();

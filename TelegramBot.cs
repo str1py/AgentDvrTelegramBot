@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿using Telegram.Bot;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -272,10 +272,10 @@ namespace CountryTelegramBot
             {
                 logger?.LogInformation($"Отправка отчета с {videoList.Count} видео");
                 await bot.SendMessage(
-                        chatId: chatId,
-                        text: $"Отправляю отчет за период с {start.ToShortDateString()} {start.ToShortTimeString()} по {end.ToShortDateString()} {end.ToShortTimeString()}",
-                        parseMode: ParseMode.Html
-                    );
+                    chatId: chatId,
+                    text: $"Отправляю отчет за период с {start.ToShortDateString()} {start.ToShortTimeString()} по {end.ToShortDateString()} {end.ToShortTimeString()}",
+                    parseMode: ParseMode.Html
+                );
 
                 const int maxGroupSize = 10;
                 var groups = videoList
