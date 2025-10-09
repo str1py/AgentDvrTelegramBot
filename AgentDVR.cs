@@ -44,7 +44,8 @@ namespace CountryTelegramBot
         /// <param name="config">Конфигурация общих параметров</param>
         /// <param name="logger">Логгер</param>
         /// <param name="httpClient">Экземпляр HttpClient (желательно внедрять через DI)</param>
-        public AgentDVR(string agentDvrUrl, string user, string password, Configs.CommonConfig config, ILogger? logger, HttpClient httpClient)
+        /// <param name="timeHelper">Экземпляр TimeHelper (внедряем через DI)</param>
+        public AgentDVR(string agentDvrUrl, string user, string password, Configs.CommonConfig config, ILogger? logger, HttpClient httpClient, TimeHelper timeHelper)
         {
             if (string.IsNullOrWhiteSpace(agentDvrUrl))
                 throw new ArgumentException("agentDvrUrl не может быть пустым", nameof(agentDvrUrl));
@@ -56,15 +57,17 @@ namespace CountryTelegramBot
                 throw new ArgumentNullException(nameof(config));
             if (httpClient == null)
                 throw new ArgumentNullException(nameof(httpClient));
+            if (timeHelper == null)
+                throw new ArgumentNullException(nameof(timeHelper));
 
             this.agentDvrUrl = agentDvrUrl;
             agentUser = user;
             agentPass = password;
             this.logger = logger;
             this.httpClient = httpClient;
+            this.timeHelper = timeHelper;
             IsForcedArmedAtNight = config.ForcedArmedAtNight;
             IsForcedArmedAtDay = config.ForcedArmedAtDay;
-            timeHelper = new TimeHelper(logger);
             SetAuthorizationHeader();
             dailyScheduler = new DailyScheduler(ForcedArmedByTime);
             LogAgentDvrCreated();
@@ -97,7 +100,7 @@ namespace CountryTelegramBot
         }
 
         public AgentDVR(string agentDvrUrl, string user, string password, Configs.CommonConfig config, ILogger? logger)
-            : this(agentDvrUrl, user, password, config, logger, new HttpClient())
+            : this(agentDvrUrl, user, password, config, logger, new HttpClient(), new TimeHelper(logger))
         {
         }
 

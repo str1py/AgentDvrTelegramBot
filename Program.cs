@@ -1,4 +1,4 @@
-﻿﻿﻿﻿using Microsoft.EntityFrameworkCore;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -30,6 +30,13 @@ internal class Program
             if (appInitializationService != null)
             {
                 await appInitializationService.InitializeAsync();
+            }
+
+            // Проверяем и отправляем неотправленные отчеты при запуске
+            var unsentReportService = scope.ServiceProvider.GetService<IUnsentReportService>();
+            if (unsentReportService != null)
+            {
+                await unsentReportService.SendUnsentReportsAtStartupAsync();
             }
 
             // Запускаем VideoWatcher
@@ -159,11 +166,12 @@ internal class Program
                     var config = provider.GetRequiredService<IConfiguration>();
                     var logger = provider.GetRequiredService<ILogger<AgentDVR>>();
                     var httpClient = provider.GetRequiredService<HttpClient>();
+                    var timeHelper = provider.GetRequiredService<TimeHelper>();
                     
                     var dvrConfig = config.GetSection("AgentDVR").Get<AgentDVRConfig>() ?? new AgentDVRConfig();
                     var commonConfig = config.GetSection("Common").Get<CommonConfig>() ?? new CommonConfig();
                     
-                    return new AgentDVR(dvrConfig.Url, dvrConfig.User, dvrConfig.Password, commonConfig, logger, httpClient);
+                    return new AgentDVR(dvrConfig.Url, dvrConfig.User, dvrConfig.Password, commonConfig, logger, httpClient, timeHelper);
                 });
                 
                 // Регистрация IVideoCompressionService
@@ -218,8 +226,8 @@ internal class Program
                     return new ReportService(dbConnection, telegramBotService, videoRepository, timeHelper, logger);
                 });
                 
-                // Регистрация TestReportService
-                services.AddSingleton<ITestReportService, TestReportService>(provider =>
+                // Регистрация UnsentReportService
+                services.AddSingleton<IUnsentReportService, UnsentReportService>(provider =>
                 {
                     var telegramBotService = provider.GetRequiredService<ITelegramBotService>();
                     var videoRepository = provider.GetRequiredService<IVideoRepository>();
@@ -227,9 +235,10 @@ internal class Program
                     var reportService = provider.GetRequiredService<IReportService>();
                     var configuration = provider.GetRequiredService<IConfiguration>();
                     var commonConfig = configuration.GetSection("Common").Get<CountryTelegramBot.Configs.CommonConfig>() ?? new CountryTelegramBot.Configs.CommonConfig();
-                    var logger = provider.GetRequiredService<ILogger<TestReportService>>();
+                    var logger = provider.GetRequiredService<ILogger<UnsentReportService>>();
+                    var dbConnection = provider.GetRequiredService<IDbConnection>();
                     
-                    return new TestReportService(telegramBotService, videoRepository, timeHelper, reportService, commonConfig, logger);
+                    return new UnsentReportService(telegramBotService, videoRepository, timeHelper, reportService, commonConfig, logger, dbConnection);
                 });
 
                 // Регистрация AppInitializationService
@@ -247,7 +256,7 @@ internal class Program
                     
                     return new AppInitializationService(dbConnection, telegramBotService, videoRepository, timeHelper, reportService, agentDvr, commonConfig, logger);
                 });
-                
+
                 // Настройка HttpClient
                 services.AddHttpClient();
             });

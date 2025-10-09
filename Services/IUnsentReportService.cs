@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 
 namespace CountryTelegramBot.Services
 {
-    public interface ITestReportService
+    public interface IUnsentReportService
     {
         /// <summary>
-        /// Отправляет тестовый отчет
+        /// Проверяет и отправляет неотправленные отчеты при запуске приложения
         /// </summary>
-        Task SendTestReportAsync();
+        Task SendUnsentReportsAtStartupAsync();
         
         /// <summary>
         /// Проверяет и отправляет отчеты за сегодня, если они еще не были отправлены
