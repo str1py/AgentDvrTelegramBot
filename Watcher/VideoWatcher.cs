@@ -153,28 +153,82 @@ namespace CountryTelegramBot
             try
             {
                 var now = DateTime.Now;
-                logger?.LogInformation($"{DateTime.Now.ToShortTimeString()}: Тик в SendVideo (WatcherType: {watcherType})");
+                logger.LogInformation($"{DateTime.Now.ToShortTimeString()}: Планированная отправка отчета (WatcherType: {watcherType})");
+                
+                // Проверяем, нужно ли отправлять отчеты в зависимости от типа наблюдателя
+                bool shouldSendReport = false;
+                
                 if (watcherType == CountryTelegramBot.Services.WatcherType.Morning)
                 {
                     if (now >= timeHelper.MorningReport)
                     {
-                        logger?.LogInformation("Отправка утреннего отчета через SendVideo");
-                        var vid = await videoRepository.GetVideosAsync(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
-                        await bot.SendVideoGroupAsync(vid, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
-                        timeHelper.CalculateNextNightPeriod();
-                        timeHelper.CalculateNextMorningReport();
+                        shouldSendReport = true;
+                        logger.LogInformation("Отправка утреннего отчета через SendVideo");
                     }
                 }
                 else if (watcherType == CountryTelegramBot.Services.WatcherType.MorningAndEvening)
                 {
                     if (now >= timeHelper.EveningReport)
                     {
-                        logger?.LogInformation("Отправка утренне-вечернего отчета через SendVideo");
-                        var vidNight = await videoRepository.GetVideosAsync(timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
-                        var vidDay = await videoRepository.GetVideosAsync(timeHelper.DayVideoStartDate, timeHelper.DayVideoEndDate);
+                        shouldSendReport = true;
+                        logger.LogInformation("Отправка утренне-вечернего отчета через SendVideo");
+                    }
+                }
+                
+                if (shouldSendReport)
+                {
+                    // Проверяем, не был ли отчет уже отправлен
+                    if (watcherType == CountryTelegramBot.Services.WatcherType.Morning)
+                    {
+                        var startDate = timeHelper.NightVideoStartDate.AddDays(-1);
+                        var endDate = timeHelper.NightVideoEndDate.AddDays(-1);
+                        
+                        // Проверяем статус отчета перед отправкой
+                        var reportStatus = dbConnection.GetReportStatus(startDate, endDate);
+                        if (reportStatus != null && reportStatus.IsSent)
+                        {
+                            logger.LogInformation($"Утренний отчет за {startDate} - {endDate} уже был отправлен ранее ({reportStatus.SentAt})");
+                            return;
+                        }
+                        
+                        var vid = await videoRepository.GetVideosAsync(startDate, endDate);
+                        await bot.SendVideoGroupAsync(vid, startDate, endDate);
+                        timeHelper.CalculateNextNightPeriod();
+                        timeHelper.CalculateNextMorningReport();
+                    }
+                    else if (watcherType == CountryTelegramBot.Services.WatcherType.MorningAndEvening)
+                    {
+                        // Для утренне-вечернего типа проверяем оба периода
+                        var nightStartDate = timeHelper.NightVideoStartDate.AddDays(-1);
+                        var nightEndDate = timeHelper.NightVideoEndDate.AddDays(-1);
+                        var dayStartDate = timeHelper.DayVideoStartDate;
+                        var dayEndDate = timeHelper.DayVideoEndDate;
+                        
+                        // Проверяем статус отчетов перед отправкой
+                        var nightReportStatus = dbConnection.GetReportStatus(nightStartDate, nightEndDate);
+                        var dayReportStatus = dbConnection.GetReportStatus(dayStartDate, dayEndDate);
+                        
+                        bool nightReportSent = nightReportStatus != null && nightReportStatus.IsSent;
+                        bool dayReportSent = dayReportStatus != null && dayReportStatus.IsSent;
+                        
+                        if (nightReportSent && dayReportSent)
+                        {
+                            logger.LogInformation("Оба отчета (дневной и ночной) уже были отправлены ранее");
+                            return;
+                        }
+                        
+                        var vidNight = await videoRepository.GetVideosAsync(nightStartDate, nightEndDate);
+                        var vidDay = await videoRepository.GetVideosAsync(dayStartDate, dayEndDate);
 
-                        await bot.SendVideoGroupAsync(vidDay, timeHelper.DayVideoStartDate, timeHelper.DayVideoEndDate);
-                        await bot.SendVideoGroupAsync(vidNight, timeHelper.NightVideoStartDate, timeHelper.NightVideoEndDate);
+                        if (!nightReportSent)
+                        {
+                            await bot.SendVideoGroupAsync(vidNight, nightStartDate, nightEndDate);
+                        }
+                        
+                        if (!dayReportSent)
+                        {
+                            await bot.SendVideoGroupAsync(vidDay, dayStartDate, dayEndDate);
+                        }
 
                         timeHelper.CalculateNextDayPeriod();
                         timeHelper.CalculateNextNightPeriod();
@@ -185,7 +239,7 @@ namespace CountryTelegramBot
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "Ошибка в методе SendVideo");
+                logger.LogError(ex, "Ошибка в методе SendVideo");
             }
         }
 

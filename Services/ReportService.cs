@@ -41,8 +41,8 @@ namespace CountryTelegramBot.Services
         public void StartPeriodicCheck()
         {
             _logger.LogInformation("Запуск периодической проверки неотправленных отчетов");
-            // Проверяем каждые 10 минут
-            _timer.Change(TimeSpan.Zero, TimeSpan.FromMinutes(10));
+            // Проверяем каждые 30 минут вместо 10, чтобы уменьшить нагрузку
+            _timer.Change(TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(30));
         }
 
         /// <summary>
@@ -52,59 +52,66 @@ namespace CountryTelegramBot.Services
         {
             try
             {
-                _logger.LogInformation("Проверка неотправленных отчетов");
+                _logger.LogInformation("Периодическая проверка неотправленных отчетов");
                 var unsentReports = _dbConnection.GetUnsentReports();
-                _logger.LogInformation($"Найдено {unsentReports.Count} неотправленных отчетов");
+                _logger.LogInformation($"Найдено {unsentReports.Count} неотправленных отчетов для повторной отправки");
 
-                foreach (var report in unsentReports)
+                if (unsentReports.Count > 0)
                 {
-                    try
+                    foreach (var report in unsentReports)
                     {
-                        _logger.LogInformation($"Попытка отправки отчета за период {report.StartDate} - {report.EndDate} (ID: {report.Id})");
+                        try
+                        {
+                            _logger.LogInformation($"Попытка повторной отправки отчета за период {report.StartDate} - {report.EndDate} (ID: {report.Id})");
 
-                        // Получаем видео для этого периода отчета
-                        var videos = await _videoRepository.GetVideosAsync(report.StartDate, report.EndDate);
+                            // Получаем видео для этого периода отчета
+                            var videos = await _videoRepository.GetVideosAsync(report.StartDate, report.EndDate);
 
-                        // Отправляем отчет
-                        await _telegramBotService.SendVideoGroupAsync(videos, report.StartDate, report.EndDate);
+                            // Отправляем отчет
+                            await _telegramBotService.SendVideoGroupAsync(videos, report.StartDate, report.EndDate);
 
-                        _logger.LogInformation($"Отчет за период {report.StartDate} - {report.EndDate} (ID: {report.Id}) успешно отправлен");
+                            _logger.LogInformation($"Отчет за период {report.StartDate} - {report.EndDate} (ID: {report.Id}) успешно отправлен");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, $"Ошибка при повторной отправке отчета за период {report.StartDate} - {report.EndDate} (ID: {report.Id})");
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, $"Ошибка при отправке отчета за период {report.StartDate} - {report.EndDate} (ID: {report.Id})");
-                    }
+                }
+                else
+                {
+                    _logger.LogInformation("Нет неотправленных отчетов для повторной отправки");
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Ошибка при проверке неотправленных отчетов");
+                _logger.LogError(ex, "Ошибка при периодической проверке неотправленных отчетов");
             }
         }
 
         /// <summary>
         /// Проверяет и отправляет отчеты за сегодня, если они еще не были отправлены
         /// </summary>
-        public async Task CheckAndSendTodaysReports(CountryTelegramBot.Services.WatcherType watcherType)
+        public async Task CheckAndSendTodaysReports(CountryTelegramBot.Services.WatcherType reportType)
         {
             try
             {
-                _logger.LogInformation($"Проверка и отправка отчетов за сегодня для типа наблюдателя: {watcherType}");
+                _logger.LogInformation($"Проверка и отправка отчетов за сегодня для типа наблюдателя: {reportType}");
 
                 // Проверяем только для типов наблюдателей Morning и MorningAndEvening
-                if (watcherType != CountryTelegramBot.Services.WatcherType.Morning && watcherType != CountryTelegramBot.Services.WatcherType.MorningAndEvening)
+                if (reportType != CountryTelegramBot.Services.WatcherType.Morning && reportType != CountryTelegramBot.Services.WatcherType.MorningAndEvening)
                 {
                     _logger.LogInformation("Для данного типа наблюдателя ежедневные отчеты не требуются");
                     return;
                 }
 
-                var wasSent = await WasReportSentToday(watcherType);
+                var wasSent = await WasReportSentToday(reportType);
                 if (!wasSent)
                 {
                     _logger.LogInformation("Отчет за сегодня не был отправлен. Отправляю отчет...");
 
                     // Определяем период времени в зависимости от типа наблюдателя
-                    if (watcherType == CountryTelegramBot.Services.WatcherType.Morning)
+                    if (reportType == CountryTelegramBot.Services.WatcherType.Morning)
                     {
                         // Для утренних отчетов отправляем видео за прошлую ночь
                         var startDate = _timeHelper.NightVideoStartDate.AddDays(-1);
@@ -117,7 +124,7 @@ namespace CountryTelegramBot.Services
                         var videos = await _dbConnection.GetVideosAsync(startDate, endDate);
                         await _telegramBotService.SendVideoGroupAsync(videos, startDate, endDate);
                     }
-                    else if (watcherType == CountryTelegramBot.Services.WatcherType.MorningAndEvening)
+                    else if (reportType == CountryTelegramBot.Services.WatcherType.MorningAndEvening)
                     {
                         // Для утренне-вечерних отчетов отправляем видео за дневной и ночной периоды
                         // Отправляем дневные видео (с утра до вечера)
@@ -147,7 +154,7 @@ namespace CountryTelegramBot.Services
                 }
                 else
                 {
-                    _logger.LogInformation("Отчеты за сегодня уже были отправлены.");
+                    _logger.LogInformation("Отчеты за сегодня уже были отправлены. Пропускаем отправку.");
                 }
             }
             catch (Exception ex)
@@ -159,7 +166,7 @@ namespace CountryTelegramBot.Services
         /// <summary>
         /// Проверяет, был ли отчет отправлен сегодня для указанного типа наблюдателя
         /// </summary>
-        private async Task<bool> WasReportSentToday(CountryTelegramBot.Services.WatcherType watcherType)
+        private async Task<bool> WasReportSentToday(CountryTelegramBot.Services.WatcherType reportType)
         {
             try
             {
@@ -167,14 +174,14 @@ namespace CountryTelegramBot.Services
                 DateTime startDate, endDate;
 
                 // Определяем период времени в зависимости от типа наблюдателя
-                if (watcherType == CountryTelegramBot.Services.WatcherType.Morning)
+                if (reportType == CountryTelegramBot.Services.WatcherType.Morning)
                 {
                     // Для утренних отчетов проверяем период прошлой ночи
                     startDate = _timeHelper.NightVideoStartDate.AddDays(-1);
                     endDate = _timeHelper.NightVideoEndDate.AddDays(-1);
                     _logger.LogInformation($"Проверка утреннего отчета за период: {startDate} - {endDate}");
                 }
-                else if (watcherType == CountryTelegramBot.Services.WatcherType.MorningAndEvening)
+                else if (reportType == CountryTelegramBot.Services.WatcherType.MorningAndEvening)
                 {
                     // Для утренне-вечерних отчетов проверяем, был ли отправлен отчет за дневной или ночной период
                     // Проверяем дневной период (с утра до вечера)
@@ -249,6 +256,25 @@ namespace CountryTelegramBot.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Ошибка при добавлении записи о попытке отправки отчета");
+            }
+        }
+
+        /// <summary>
+        /// Получает тип наблюдателя из строки
+        /// </summary>
+        public CountryTelegramBot.Services.WatcherType GetWatcherType(string type)
+        {
+            if (type == "ASAP")
+            {
+                return CountryTelegramBot.Services.WatcherType.ASAP;
+            }
+            else if (type == "Morning")
+            {
+                return CountryTelegramBot.Services.WatcherType.Morning;
+            }
+            else
+            {
+                return CountryTelegramBot.Services.WatcherType.MorningAndEvening;
             }
         }
 

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿using Telegram.Bot;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -350,11 +350,11 @@ namespace CountryTelegramBot
                             var fileInfo = new FileInfo(vid.Path);
                             logger?.LogInformation($"Размер исходного файла: {fileInfo.Length} байт ({fileInfo.Length / (1024.0 * 1024.0):F2} МБ)");
                             
-                            // Централизованная проверка и сжатие видео до 10 МБ
-                            var targetSizeBytes = 10 * 1024 * 1024; // 10 МБ для каждого видео (увеличен с 5 МБ)
-                            logger?.LogInformation($"Сжатие видео до целевого размера 10 МБ: {vid.Path}");
+                            // Централизованная проверка и сжатие видео до 5 МБ
+                            var targetSizeBytes = 5 * 1024 * 1024; // 5 МБ для каждого видео (возвращаем к исходному размеру)
+                            logger?.LogInformation($"Сжатие видео до целевого размера 5 МБ: {vid.Path}");
                             var processedVideoPath = await videoCompressionService.CompressVideoIfNeededAsync(vid.Path, targetSizeBytes);
-                            
+
                             if (processedVideoPath != null)
                             {
                                 logger?.LogInformation($"Видео после сжатия: {processedVideoPath}");
