@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.EntityFrameworkCore;
+﻿﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -166,6 +166,9 @@ internal class Program
                     return new AgentDVR(dvrConfig.Url, dvrConfig.User, dvrConfig.Password, commonConfig, logger, httpClient);
                 });
                 
+                // Регистрация IVideoCompressionService
+                services.AddSingleton<IVideoCompressionService, VideoCompressionService>();
+                
                 // Регистрация TelegramBot с фабрикой
                 services.AddSingleton<TelegramBot>(provider =>
                 {
@@ -173,6 +176,7 @@ internal class Program
                     var logger = provider.GetRequiredService<ILogger<TelegramBot>>();
                     var agentDvr = provider.GetRequiredService<AgentDVR>();
                     var fileHelper = provider.GetRequiredService<FileHelper>();
+                    var videoCompressionService = provider.GetRequiredService<IVideoCompressionService>();
                     
                     var botConfig = configuration.GetSection("TelegramBot").Get<TelegramBotConfig>();
                     
@@ -180,7 +184,8 @@ internal class Program
                     return new TelegramBot(botConfig.BotToken, botConfig.ChatId, agentDvr, 
                         provider.GetRequiredService<IVideoRepository>(),
                         fileHelper, logger, 
-                        provider.GetRequiredService<IDbConnection>());
+                        provider.GetRequiredService<IDbConnection>(),
+                        videoCompressionService);
                 });
                 services.AddSingleton<ITelegramBotService>(provider => provider.GetRequiredService<TelegramBot>());
                 
