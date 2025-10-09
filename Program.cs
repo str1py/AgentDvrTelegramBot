@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.EntityFrameworkCore;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -104,7 +104,7 @@ internal class Program
                 }, ServiceLifetime.Scoped);
                 
                 // Регистрация сервисов с обработкой ошибок
-                services.AddScoped<IVideoRepository>(provider =>
+                services.AddSingleton<IVideoRepository>(provider =>
                 {
                     try
                     {
@@ -120,7 +120,7 @@ internal class Program
                 });
                 
                 // Регистрация IDbConnection
-                services.AddScoped<IDbConnection>(provider =>
+                services.AddSingleton<IDbConnection>(provider =>
                 {
                     try
                     {

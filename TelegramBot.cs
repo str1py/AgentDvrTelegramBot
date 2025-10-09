@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿using Telegram.Bot;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -295,16 +295,60 @@ namespace CountryTelegramBot
                         {
                             if (vid?.Path != null)
                             {
-                                var videoStream = await fileHelper.GetFileStreamFromVideo(vid.Path);
-                                if (videoStream != null)
+                                // Проверяем размер файла перед отправкой
+                                var maxSizeBytes = 50 * 1024 * 1024; // 50 МБ лимит Telegram
+                                if (!fileHelper.IsFileSizeWithinLimit(vid.Path, maxSizeBytes))
                                 {
-                                    media.Add(new InputMediaVideo(InputFile.FromStream(videoStream, Path.GetFileName(vid.Path))));
+                                    logger?.LogWarning($"Видео {vid.Path} превышает допустимый размер для отправки в Telegram. Попытка сжатия...");
+                                    
+                                    // Пытаемся сжать видео
+                                    var compressedVideoPath = Path.Combine(Path.GetDirectoryName(vid.Path), $"{Path.GetFileNameWithoutExtension(vid.Path)}_compressed{Path.GetExtension(vid.Path)}");
+                                    var compressionSuccess = await fileHelper.CompressVideoAsync(vid.Path, compressedVideoPath, maxSizeBytes);
+                                    
+                                    if (compressionSuccess && fileHelper.IsFileSizeWithinLimit(compressedVideoPath, maxSizeBytes))
+                                    {
+                                        logger?.LogInformation($"Видео успешно сжато: {vid.Path} -> {compressedVideoPath}");
+                                        // Используем сжатое видео
+                                        var videoStream = await fileHelper.GetFileStreamFromVideo(compressedVideoPath);
+                                        if (videoStream != null)
+                                        {
+                                            media.Add(new InputMediaVideo(InputFile.FromStream(videoStream, Path.GetFileName(compressedVideoPath))));
+                                        }
+                                        else
+                                        {
+                                            // Сжатое видео недоступно, удаляем из базы данных
+                                            if (await videoRepository.RemoveByPathAsync(vid.Path))
+                                                logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
+                                            // Удаляем временный сжатый файл
+                                            if (File.Exists(compressedVideoPath))
+                                                File.Delete(compressedVideoPath);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        logger?.LogWarning($"Не удалось сжать видео до допустимого размера: {vid.Path}");
+                                        // Файл слишком большой и не может быть сжат, удаляем из базы данных
+                                        if (await videoRepository.RemoveByPathAsync(vid.Path))
+                                            logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
+                                        // Удаляем временный сжатый файл, если он был создан
+                                        if (File.Exists(compressedVideoPath))
+                                            File.Delete(compressedVideoPath);
+                                    }
                                 }
                                 else
                                 {
-                                    // Файл недоступен, удаляем из базы данных
-                                    if (await videoRepository.RemoveByPathAsync(vid.Path))
-                                        logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
+                                    // Файл в пределах допустимого размера, отправляем как есть
+                                    var videoStream = await fileHelper.GetFileStreamFromVideo(vid.Path);
+                                    if (videoStream != null)
+                                    {
+                                        media.Add(new InputMediaVideo(InputFile.FromStream(videoStream, Path.GetFileName(vid.Path))));
+                                    }
+                                    else
+                                    {
+                                        // Файл недоступен, удаляем из базы данных
+                                        if (await videoRepository.RemoveByPathAsync(vid.Path))
+                                            logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
+                                    }
                                 }
                             }
                         }
@@ -318,7 +362,7 @@ namespace CountryTelegramBot
                         }
                         else
                         {
-                            logger?.LogWarning("Пропущена отправка группы медиа, так как ни одно видео не доступно");
+                            logger?.LogWarning("Пропущена отправка группы медиа, так как ни одно видео не доступно или не соответствует требованиям");
                         }
                     }
                     catch (Exception ex)
@@ -333,7 +377,7 @@ namespace CountryTelegramBot
                 if (alreadySentVideos == 0 && videoList.Count > 0)
                 {
                     sendSuccess = false;
-                    errorMessage = "Все видео из отчета недоступны и были удалены из базы данных.";
+                    errorMessage = "Все видео из отчета недоступны, превышают допустимый размер или были удалены из базы данных.";
                     await bot.SendMessage(
                         chatId: chatId,
                         text: $"⚠️ {errorMessage}",
@@ -344,7 +388,7 @@ namespace CountryTelegramBot
                 {
                     await bot.SendMessage(
                         chatId: chatId,
-                        text: $"ℹ️ Отправлено {alreadySentVideos} из {videoList.Count} видео. Недоступные видео были удалены из базы данных.",
+                        text: $"ℹ️ Отправлено {alreadySentVideos} из {videoList.Count} видео. Недоступные видео или видео, превышающие допустимый размер, были удалены из базы данных.",
                         parseMode: ParseMode.Html
                     );
                 }
