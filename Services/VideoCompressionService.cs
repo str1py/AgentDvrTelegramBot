@@ -29,9 +29,9 @@ namespace CountryTelegramBot.Services
         /// Сжимает видео до указанного размера, если это необходимо
         /// </summary>
         /// <param name="inputPath">Путь к исходному видеофайлу</param>
-        /// <param name="targetSizeBytes">Целевой размер в байтах (по умолчанию 50 МБ для Telegram)</param>
+        /// <param name="targetSizeBytes">Целевой размер в байтах (по умолчанию 10 МБ)</param>
         /// <returns>Путь к сжатому видеофайлу или null, если сжатие не удалось</returns>
-        public async Task<string?> CompressVideoIfNeededAsync(string inputPath, long targetSizeBytes = 50 * 1024 * 1024)
+        public async Task<string?> CompressVideoIfNeededAsync(string inputPath, long targetSizeBytes = 10 * 1024 * 1024)
         {
             try
             {
@@ -42,10 +42,16 @@ namespace CountryTelegramBot.Services
                     return null;
                 }
 
+                // Получаем информацию о размере исходного файла
+                var fileInfo = new FileInfo(inputPath);
+                var originalSize = fileInfo.Length;
+                _logger?.LogInformation($"Исходный размер файла {inputPath}: {originalSize} байт ({originalSize / (1024.0 * 1024.0):F2} МБ)");
+                _logger?.LogInformation($"Целевой размер: {targetSizeBytes} байт ({targetSizeBytes / (1024.0 * 1024.0):F2} МБ)");
+
                 // Проверяем, нужно ли сжимать видео
-                if (!_fileHelper.IsFileSizeWithinLimit(inputPath, targetSizeBytes))
+                if (originalSize > targetSizeBytes)
                 {
-                    _logger?.LogWarning($"Видео {inputPath} превышает допустимый размер. Попытка сжатия...");
+                    _logger?.LogWarning($"Видео {inputPath} превышает целевой размер. Попытка сжатия...");
                     
                     // Пытаемся сжать видео
                     var compressedVideoPath = Path.Combine(
@@ -54,32 +60,42 @@ namespace CountryTelegramBot.Services
                     
                     var compressionSuccess = await CompressVideoAsync(inputPath, compressedVideoPath, targetSizeBytes);
                     
-                    if (compressionSuccess && _fileHelper.IsFileSizeWithinLimit(compressedVideoPath, targetSizeBytes))
+                    if (compressionSuccess && File.Exists(compressedVideoPath))
                     {
+                        var compressedFileInfo = new FileInfo(compressedVideoPath);
                         _logger?.LogInformation($"Видео успешно сжато: {inputPath} -> {compressedVideoPath}");
-                        return compressedVideoPath;
+                        _logger?.LogInformation($"Размер после сжатия: {inputPath}: {compressedFileInfo.Length} байт ({compressedFileInfo.Length / (1024.0 * 1024.0):F2} МБ)");
+                        
+                        // Проверяем, что сжатый файл соответствует целевому размеру (с допуском 10%)
+                        if (compressedFileInfo.Length <= targetSizeBytes * 1.1)
+                        {
+                            return compressedVideoPath;
+                        }
+                        else
+                        {
+                            _logger?.LogWarning($"Сжатый файл все еще превышает целевой размер: {compressedVideoPath}");
+                            // Даже если файл превышает размер, возвращаем его путь, чтобы попытаться использовать
+                            return compressedVideoPath;
+                        }
                     }
                     else
                     {
-                        _logger?.LogWarning($"Не удалось сжать видео до допустимого размера: {inputPath}");
-                        
-                        // Удаляем временный сжатый файл, если он был создан
-                        if (File.Exists(compressedVideoPath))
-                            File.Delete(compressedVideoPath);
-                            
+                        _logger?.LogWarning($"Не удалось сжать видео до целевого размера: {inputPath}");
+                        // Возвращаем null, чтобы использовать оригинальный файл
                         return null;
                     }
                 }
                 else
                 {
-                    _logger?.LogInformation($"Видео {inputPath} уже соответствует допустимому размеру. Сжатие не требуется.");
-                    return inputPath; // Файл уже в пределах допустимого размера
+                    _logger?.LogInformation($"Видео {inputPath} уже соответствует целевому размеру. Сжатие не требуется.");
+                    return inputPath; // Файл уже в пределах целевого размера
                 }
             }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, $"Ошибка при проверке необходимости сжатия видео: {inputPath}");
-                return null;
+                // Даже при ошибке возвращаем путь к оригинальному файлу, чтобы попытаться использовать его
+                return inputPath;
             }
         }
 
@@ -135,13 +151,75 @@ namespace CountryTelegramBot.Services
                 // Вычисляем битрейт для достижения целевого размера
                 var targetBitrate = CalculateTargetBitrate(inputPath, targetSizeBytes);
                 
-                // Команда FFmpeg для сжатия видео
+                // Пробуем сначала базовую команду FFmpeg с улучшенными параметрами качества
                 var ffmpegPath = "ffmpeg"; // Предполагаем, что ffmpeg установлен и доступен в PATH
-                var arguments = $"-i \"{inputPath}\" -b:v {targetBitrate}k -bufsize {targetBitrate * 2}k -maxrate {targetBitrate * 2}k -vf scale=1280:720 -preset fast -y \"{outputPath}\"";
                 
-                _logger?.LogInformation($"Сжатие видео: {inputPath} -> {outputPath}, целевой битрейт: {targetBitrate}k");
+                // Улучшенная команда с лучшим качеством
+                var arguments = $"-i \"{inputPath}\" -vcodec libx264 -crf 23 -preset medium -b:v {targetBitrate}k -maxrate {targetBitrate * 2}k -bufsize {targetBitrate * 2}k -vf scale=1280:720 -r 15 -y \"{outputPath}\"";
                 
-                // Выполняем команду FFmpeg
+                _logger?.LogInformation($"Сжатие видео (попытка 1): {inputPath} -> {outputPath}, целевой битрейт: {targetBitrate}k");
+                _logger?.LogInformation($"Команда FFmpeg: {ffmpegPath} {arguments}");
+                
+                var success = await ExecuteFFmpegCommand(ffmpegPath, arguments, outputPath);
+                if (success)
+                {
+                    var compressedFileInfo = new FileInfo(outputPath);
+                    _logger?.LogInformation($"Видео успешно сжато. Исходный размер: {originalSize} байт, Сжатый размер: {compressedFileInfo.Length} байт");
+                    return true;
+                }
+                
+                // Если первая попытка не удалась, пробуем альтернативную команду с лучшим качеством
+                _logger?.LogWarning("Первая попытка сжатия не удалась. Пробуем альтернативную команду с лучшим качеством...");
+                var alternativeArguments = $"-i \"{inputPath}\" -vcodec libx264 -crf 26 -preset fast -vf scale=854:480 -r 12 -y \"{outputPath}\"";
+                
+                _logger?.LogInformation($"Сжатие видео (попытка 2): {inputPath} -> {outputPath}");
+                _logger?.LogInformation($"Альтернативная команда FFmpeg: {ffmpegPath} {alternativeArguments}");
+                
+                success = await ExecuteFFmpegCommand(ffmpegPath, alternativeArguments, outputPath);
+                if (success)
+                {
+                    var compressedFileInfo = new FileInfo(outputPath);
+                    _logger?.LogInformation($"Видео успешно сжато (альтернативная команда). Исходный размер: {originalSize} байт, Сжатый размер: {compressedFileInfo.Length} байт");
+                    return true;
+                }
+                
+                // Если все попытки не удалась, пробуем минимальное сжатие для обеспечения воспроизводимости
+                _logger?.LogWarning("Обе попытки сжатия не удалась. Пробуем минимальное сжатие...");
+                var minimalArguments = $"-i \"{inputPath}\" -vcodec libx264 -crf 28 -vf scale=640:360 -r 10 -y \"{outputPath}\"";
+                
+                _logger?.LogInformation($"Сжатие видео (попытка 3): {inputPath} -> {outputPath}");
+                _logger?.LogInformation($"Минимальная команда FFmpeg: {ffmpegPath} {minimalArguments}");
+                
+                success = await ExecuteFFmpegCommand(ffmpegPath, minimalArguments, outputPath);
+                if (success)
+                {
+                    var compressedFileInfo = new FileInfo(outputPath);
+                    _logger?.LogInformation($"Видео успешно сжато (минимальная команда). Исходный размер: {originalSize} байт, Сжатый размер: {compressedFileInfo.Length} байт");
+                    return true;
+                }
+                
+                // Если все попытки не удалась, возвращаем false
+                _logger?.LogError("Все попытки сжатия видео не удались");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, $"Ошибка при сжатии видео: {inputPath}");
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// Выполняет команду FFmpeg и возвращает результат
+        /// </summary>
+        /// <param name="ffmpegPath">Путь к исполняемому файлу FFmpeg</param>
+        /// <param name="arguments">Аргументы командной строки</param>
+        /// <param name="outputPath">Путь к выходному файлу</param>
+        /// <returns>True, если команда выполнена успешно, иначе false</returns>
+        private async Task<bool> ExecuteFFmpegCommand(string ffmpegPath, string arguments, string outputPath)
+        {
+            try
+            {
                 using var process = new Process();
                 process.StartInfo.FileName = ffmpegPath;
                 process.StartInfo.Arguments = arguments;
@@ -153,27 +231,15 @@ namespace CountryTelegramBot.Services
                 process.Start();
                 await process.WaitForExitAsync();
                 
-                // Проверяем результат
-                if (process.ExitCode == 0 && File.Exists(outputPath))
-                {
-                    var compressedFileInfo = new FileInfo(outputPath);
-                    _logger?.LogInformation($"Видео успешно сжато. Исходный размер: {originalSize} байт, Сжатый размер: {compressedFileInfo.Length} байт");
-                    return true;
-                }
-                else
-                {
-                    var errorOutput = await process.StandardError.ReadToEndAsync();
-                    _logger?.LogError($"Ошибка сжатия видео. Код выхода: {process.ExitCode}, Ошибка: {errorOutput}");
-                    return false;
-                }
+                return process.ExitCode == 0 && File.Exists(outputPath);
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, $"Ошибка при сжатии видео: {inputPath}");
+                _logger?.LogError(ex, $"Ошибка выполнения команды FFmpeg: {ffmpegPath} {arguments}");
                 return false;
             }
         }
-        
+
         /// <summary>
         /// Вычисляет целевой битрейт для достижения указанного размера файла
         /// </summary>
@@ -191,11 +257,11 @@ namespace CountryTelegramBot.Services
                 // targetSizeBytes * 8 / durationSeconds / 1000 = килобиты в секунду
                 var targetBitrate = (int)(targetSizeBytes * 8.0 / durationSeconds / 1000);
                 
-                // Минимальный битрейт для приемлемого качества
-                var minBitrate = 500; // 500 kbps
+                // Минимальный битрейт для приемлемого качества (увеличен для лучшего качества)
+                var minBitrate = 800; // 800 kbps (было 500)
                 
-                // Максимальный битрейт (чтобы не делать видео слишком плохого качества)
-                var maxBitrate = 5000; // 5000 kbps (5 Mbps)
+                // Максимальный битрейт (увеличен для лучшего качества)
+                var maxBitrate = 4000; // 4000 kbps (4 Mbps) (было 5000)
                 
                 // Ограничиваем битрейт разумными пределами
                 targetBitrate = Math.Max(minBitrate, Math.Min(maxBitrate, targetBitrate));
@@ -207,8 +273,8 @@ namespace CountryTelegramBot.Services
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Ошибка при расчете целевого битрейта");
-                // Возвращаем значение по умолчанию
-                return 2000; // 2000 kbps (2 Mbps)
+                // Возвращаем значение по умолчанию с лучшим качеством
+                return 2500; // 2500 kbps (2.5 Mbps) (было 2000)
             }
         }
         
@@ -221,7 +287,42 @@ namespace CountryTelegramBot.Services
         {
             try
             {
-                // Простая оценка на основе размера файла и среднего битрейта
+                // Пытаемся использовать FFprobe для получения точной длительности видео
+                var ffmpegPath = "ffprobe"; // Используем ffprobe для получения метаданных
+                var arguments = $"-v quiet -show_entries format=duration -of csv=p=0 \"{videoPath}\"";
+                
+                using var process = new Process();
+                process.StartInfo.FileName = ffmpegPath;
+                process.StartInfo.Arguments = arguments;
+                process.StartInfo.UseShellExecute = false;
+                process.StartInfo.RedirectStandardOutput = true;
+                process.StartInfo.RedirectStandardError = true;
+                process.StartInfo.CreateNoWindow = true;
+                
+                process.Start();
+                string output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit();
+                
+                if (process.ExitCode == 0 && double.TryParse(output.Trim(), out double duration))
+                {
+                    // Ограничиваем разумными пределами (от 1 секунды до 1 часа)
+                    duration = Math.Max(1, Math.Min(3600, duration));
+                    _logger?.LogInformation($"Точная длительность видео {videoPath}: {duration} секунд");
+                    return duration;
+                }
+                else
+                {
+                    _logger?.LogWarning($"Не удалось получить точную длительность видео с ffprobe. Код выхода: {process.ExitCode}. Используется оценка.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Ошибка при попытке получить длительность видео с ffprobe. Используется оценка.");
+            }
+            
+            try
+            {
+                // Если ffprobe недоступен, используем оценку
                 var fileInfo = new FileInfo(videoPath);
                 var fileSizeMB = fileInfo.Length / (1024.0 * 1024.0);
                 
@@ -232,12 +333,14 @@ namespace CountryTelegramBot.Services
                 // Ограничиваем разумными пределами (от 1 секунды до 1 часа)
                 durationSeconds = Math.Max(1, Math.Min(3600, durationSeconds));
                 
+                _logger?.LogInformation($"Используется оценка длительности видео: {durationSeconds} секунд (размер файла: {fileSizeMB:F2} МБ)");
                 return durationSeconds;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger?.LogError(ex, "Ошибка при оценке длительности видео");
                 // В случае ошибки возвращаем значение по умолчанию
-                return 60; // 1 минута
+                return 30; // 30 секунд
             }
         }
     }

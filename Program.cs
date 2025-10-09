@@ -1,4 +1,4 @@
-﻿﻿using Microsoft.EntityFrameworkCore;
+﻿﻿﻿﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -147,7 +147,7 @@ internal class Program
                     var logger = provider.GetRequiredService<ILogger<TimeHelper>>();
                     return new TimeHelper(logger);
                 });
-                services.AddSingleton<FileHelper>(provider =>
+                services.AddSingleton<IFileHelper, FileHelper>(provider =>
                 {
                     var logger = provider.GetRequiredService<ILogger<FileHelper>>();
                     return new FileHelper(logger);
@@ -168,14 +168,14 @@ internal class Program
                 
                 // Регистрация IVideoCompressionService
                 services.AddSingleton<IVideoCompressionService, VideoCompressionService>();
-                
+
                 // Регистрация TelegramBot с фабрикой
                 services.AddSingleton<TelegramBot>(provider =>
                 {
                     var configuration = provider.GetRequiredService<IConfiguration>();
                     var logger = provider.GetRequiredService<ILogger<TelegramBot>>();
                     var agentDvr = provider.GetRequiredService<AgentDVR>();
-                    var fileHelper = provider.GetRequiredService<FileHelper>();
+                    var fileHelper = provider.GetRequiredService<IFileHelper>();
                     var videoCompressionService = provider.GetRequiredService<IVideoCompressionService>();
                     
                     var botConfig = configuration.GetSection("TelegramBot").Get<TelegramBotConfig>();
@@ -196,7 +196,7 @@ internal class Program
                     var logger = provider.GetRequiredService<ILogger<VideoWatcher>>();
                     var telegramBot = provider.GetRequiredService<ITelegramBotService>();
                     var timeHelper = provider.GetRequiredService<TimeHelper>();
-                    var fileHelper = provider.GetRequiredService<FileHelper>();
+                    var fileHelper = provider.GetRequiredService<IFileHelper>();
                     var dbConnection = provider.GetRequiredService<IDbConnection>();
                     var videoRepository = provider.GetRequiredService<IVideoRepository>();
                     
@@ -205,7 +205,7 @@ internal class Program
                     
                     return new VideoWatcher(telegramBot, videoRepository, commonConfig, timeHelper, fileHelper, dbConnection, watcherConfig.Folders, logger);
                 });
-                
+
                 // Регистрация ReportService
                 services.AddSingleton<IReportService, ReportService>(provider =>
                 {

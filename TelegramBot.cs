@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Telegram.Bot;
+﻿﻿﻿﻿﻿﻿﻿﻿using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -27,12 +27,12 @@ namespace CountryTelegramBot
         private AgentDVR agent;
         private bool disposed;
         private readonly ILogger<TelegramBot> logger;
-        private FileHelper fileHelper;
+        private IFileHelper fileHelper;
         private IVideoRepository videoRepository;
         private IDbConnection dbConnection;
         private IVideoCompressionService videoCompressionService;
 
-        public TelegramBot(string botToken, string chatId, AgentDVR agent, IVideoRepository videoRepository, FileHelper fileHelper, ILogger<TelegramBot> logger, IDbConnection dbConnection, IVideoCompressionService videoCompressionService)
+        public TelegramBot(string botToken, string chatId, AgentDVR agent, IVideoRepository videoRepository, IFileHelper fileHelper, ILogger<TelegramBot> logger, IDbConnection dbConnection, IVideoCompressionService videoCompressionService)
         {
             this.botToken = botToken ?? throw new ArgumentNullException(nameof(botToken));
             this.chatId = chatId ?? throw new ArgumentNullException(nameof(chatId));
@@ -292,6 +292,33 @@ namespace CountryTelegramBot
             
             try
             {
+                // Отладочная информация о видео в отчете
+                logger?.LogInformation($"=== НАЧАЛО ОБРАБОТКИ ОТЧЕТА ===");
+                logger?.LogInformation($"Общее количество видео в отчете: {videoList.Count}");
+                
+                foreach (var vid in videoList)
+                {
+                    if (vid?.Path != null)
+                    {
+                        logger?.LogInformation($"Видео для обработки: {vid.Path}");
+                        
+                        // Проверяем существование файла
+                        if (File.Exists(vid.Path))
+                        {
+                            var fileInfo = new FileInfo(vid.Path);
+                            logger?.LogInformation($"Файл существует. Размер: {fileInfo.Length} байт ({fileInfo.Length / (1024.0 * 1024.0):F2} МБ)");
+                        }
+                        else
+                        {
+                            logger?.LogWarning($"Файл НЕ существует: {vid.Path}");
+                        }
+                    }
+                    else
+                    {
+                        logger?.LogWarning("Обнаружен элемент видео с пустым путем");
+                    }
+                }
+                
                 foreach (var group in groups)
                 {
                     var media = new List<IAlbumInputMedia>();
@@ -299,20 +326,66 @@ namespace CountryTelegramBot
                     
                     foreach (var vid in group)
                     {
-                        if (vid?.Path == null) continue;
+                        if (vid?.Path == null) 
+                        {
+                            logger?.LogWarning("Пропущен элемент видео с пустым путем");
+                            continue;
+                        }
+                        
+                        logger?.LogInformation($"Обработка видео: {vid.Path}");
                         
                         try
                         {
-                            // Централизованная проверка и сжатие видео при необходимости
-                            var maxSizeBytes = 50 * 1024 * 1024; // 50 МБ лимит Telegram
-                            var processedVideoPath = await videoCompressionService.CompressVideoIfNeededAsync(vid.Path, maxSizeBytes);
+                            // Проверяем существование файла перед обработкой
+                            if (!File.Exists(vid.Path))
+                            {
+                                logger?.LogWarning($"Файл видео не существует: {vid.Path}");
+                                // Файл не существует, удаляем из базы данных
+                                if (await videoRepository.RemoveByPathAsync(vid.Path))
+                                    logger?.LogWarning($"Данные удалены из базы данных (файл не существует): {vid.Path}");
+                                continue;
+                            }
+                            
+                            // Получаем информацию о размере файла
+                            var fileInfo = new FileInfo(vid.Path);
+                            logger?.LogInformation($"Размер исходного файла: {fileInfo.Length} байт ({fileInfo.Length / (1024.0 * 1024.0):F2} МБ)");
+                            
+                            // Централизованная проверка и сжатие видео до 10 МБ
+                            var targetSizeBytes = 10 * 1024 * 1024; // 10 МБ для каждого видео (увеличен с 5 МБ)
+                            logger?.LogInformation($"Сжатие видео до целевого размера 10 МБ: {vid.Path}");
+                            var processedVideoPath = await videoCompressionService.CompressVideoIfNeededAsync(vid.Path, targetSizeBytes);
                             
                             if (processedVideoPath != null)
                             {
+                                logger?.LogInformation($"Видео после сжатия: {processedVideoPath}");
+                                
+                                // Проверяем размер обработанного файла
+                                if (File.Exists(processedVideoPath))
+                                {
+                                    var processedFileInfo = new FileInfo(processedVideoPath);
+                                    logger?.LogInformation($"Размер обработанного файла: {processedFileInfo.Length} байт ({processedFileInfo.Length / (1024.0 * 1024.0):F2} МБ)");
+                                    
+                                    if (processedFileInfo.Length > targetSizeBytes * 1.1) // Допускаем 10% превышение
+                                    {
+                                        logger?.LogWarning($"Обработанный файл превышает целевой размер: {processedVideoPath}");
+                                        // Даже если файл превышает размер, мы все равно пытаемся его отправить
+                                        logger?.LogWarning($"Попытка отправки файла несмотря на превышение размера...");
+                                    }
+                                }
+                                else
+                                {
+                                    logger?.LogWarning($"Обработанный файл не существует: {processedVideoPath}");
+                                    // Даже если сжатие не удалось, пытаемся использовать оригинальный файл
+                                    processedVideoPath = vid.Path;
+                                    logger?.LogWarning($"Используется оригинальный файл для отправки: {processedVideoPath}");
+                                }
+                                
                                 // Используем обработанное видео (оригинал или сжатое)
+                                logger?.LogInformation($"Попытка получения потока файла: {processedVideoPath}");
                                 var videoStream = await fileHelper.GetFileStreamFromVideo(processedVideoPath);
                                 if (videoStream != null)
                                 {
+                                    logger?.LogInformation($"Поток файла успешно получен: {processedVideoPath}");
                                     media.Add(new InputMediaVideo(InputFile.FromStream(videoStream, Path.GetFileName(processedVideoPath))));
                                     groupProcessedVideos.Add(processedVideoPath);
                                     
@@ -320,21 +393,63 @@ namespace CountryTelegramBot
                                     if (processedVideoPath != vid.Path)
                                     {
                                         processedVideos.Add(processedVideoPath);
+                                        logger?.LogInformation($"Добавлен временный файл для очистки: {processedVideoPath}");
                                     }
                                 }
                                 else
                                 {
-                                    // Файл недоступен, удаляем из базы данных
+                                    logger?.LogWarning($"Не удалось получить поток файла: {processedVideoPath}");
+                                    // Файл недоступен, удаляем из базы данных только если не можем получить поток
                                     if (await videoRepository.RemoveByPathAsync(vid.Path))
-                                        logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
+                                        logger?.LogWarning($"Данные удалены из базы данных (недоступен поток): {vid.Path}");
+                                    
+                                    // Удаляем временный сжатый файл, если он был создан и не можем использовать оригинальный файл
+                                    if (processedVideoPath != vid.Path && File.Exists(processedVideoPath))
+                                    {
+                                        File.Delete(processedVideoPath);
+                                        logger?.LogInformation($"Удален временный сжатый файл: {processedVideoPath}");
+                                    }
                                 }
                             }
                             else
                             {
-                                // Не удалось обработать видео, удаляем из базы данных
-                                if (await videoRepository.RemoveByPathAsync(vid.Path))
-                                    logger?.LogWarning($"Данные удалены из базы данных: {vid.Path}");
+                                logger?.LogWarning($"Не удалось обработать видео (сжатие не удалось): {vid.Path}");
+                                // Даже если сжатие не удалось, пытаемся использовать оригинальный файл
+                                logger?.LogWarning($"Попытка использования оригинального файла для отправки: {vid.Path}");
+                                var originalVideoPath = vid.Path;
+                                
+                                // Проверяем оригинальный файл
+                                if (File.Exists(originalVideoPath))
+                                {
+                                    var originalFileInfo = new FileInfo(originalVideoPath);
+                                    logger?.LogInformation($"Размер оригинального файла: {originalFileInfo.Length} байт ({originalFileInfo.Length / (1024.0 * 1024.0):F2} МБ)");
+                                    
+                                    // Используем оригинальный файл
+                                    logger?.LogInformation($"Попытка получения потока оригинального файла: {originalVideoPath}");
+                                    var videoStream = await fileHelper.GetFileStreamFromVideo(originalVideoPath);
+                                    if (videoStream != null)
+                                    {
+                                        logger?.LogInformation($"Поток оригинального файла успешно получен: {originalVideoPath}");
+                                        media.Add(new InputMediaVideo(InputFile.FromStream(videoStream, Path.GetFileName(originalVideoPath))));
+                                        // Не добавляем в processedVideos, так как это оригинальный файл
+                                    }
+                                    else
+                                    {
+                                        logger?.LogWarning($"Не удалось получить поток оригинального файла: {originalVideoPath}");
+                                        // Файл недоступен, удаляем из базы данных
+                                        if (await videoRepository.RemoveByPathAsync(vid.Path))
+                                            logger?.LogWarning($"Данные удалены из базы данных (недоступен поток оригинального файла): {vid.Path}");
+                                    }
+                                }
+                                else
+                                {
+                                    logger?.LogWarning($"Оригинальный файл не существует: {originalVideoPath}");
+                                    // Файл не существует, удаляем из базы данных
+                                    if (await videoRepository.RemoveByPathAsync(vid.Path))
+                                        logger?.LogWarning($"Данные удалены из базы данных (оригинальный файл не существует): {vid.Path}");
+                                }
                             }
+
                         }
                         catch (Exception ex)
                         {
@@ -342,6 +457,8 @@ namespace CountryTelegramBot
                             // Продолжаем обработку других видео в группе
                         }
                     }
+                    
+                    logger?.LogInformation($"Группа медиа сформирована. Количество элементов: {media.Count}");
                     
                     // Отправляем группу медиа только если она содержит элементы
                     if (media.Count > 0)
@@ -367,18 +484,31 @@ namespace CountryTelegramBot
                 }
                 
                 // Сообщаем о количестве отправленных видео
+                logger?.LogInformation($"=== РЕЗУЛЬТАТЫ ОБРАБОТКИ ===");
+                logger?.LogInformation($"Всего видео в отчете: {videoList.Count}");
+                logger?.LogInformation($"Успешно отправлено: {alreadySentVideos}");
+                
                 if (alreadySentVideos == 0 && videoList.Count > 0)
                 {
                     sendSuccess = false;
                     errorMessage = "Все видео из отчета недоступны, превышают допустимый размер или были удалены из базы данных.";
+                    logger?.LogWarning($"ОШИБКА: {errorMessage}");
+                    
+                    // Дополнительная отладочная информация
+                    logger?.LogWarning($"=== ДЕТАЛИЗАЦИЯ ПРОБЛЕМЫ ===");
+                    logger?.LogWarning($"- Всего видео в отчете: {videoList.Count}");
+                    logger?.LogWarning($"- Успешно отправлено: {alreadySentVideos}");
+                    
                     await bot.SendMessage(
                         chatId: chatId,
-                        text: $"⚠️ {errorMessage}",
+                        text: $"⚠️ {errorMessage}\n\nДетали:\n- Всего видео: {videoList.Count}\n- Отправлено: {alreadySentVideos}",
                         parseMode: ParseMode.Html
                     );
                 }
                 else if (alreadySentVideos < videoList.Count)
                 {
+                    logger?.LogWarning($"Частичная отправка: {alreadySentVideos} из {videoList.Count} видео");
+                    
                     await bot.SendMessage(
                         chatId: chatId,
                         text: $"ℹ️ Отправлено {alreadySentVideos} из {videoList.Count} видео. Недоступные видео или видео, превышающие допустимый размер, были удалены из базы данных.",
@@ -387,6 +517,8 @@ namespace CountryTelegramBot
                 }
                 else
                 {
+                    logger?.LogInformation($"Успешная отправка всех видео: {alreadySentVideos}");
+                    
                     await bot.SendMessage(
                         chatId: chatId,
                         text: $"✅ Отчет успешно отправлен. Отправлено {alreadySentVideos} видео.",
