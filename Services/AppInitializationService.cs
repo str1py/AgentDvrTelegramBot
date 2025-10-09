@@ -49,7 +49,7 @@ namespace CountryTelegramBot.Services
             await InitializeAgentDvr();
 
             // Отправляем тестовый отчет (если нужно)
-            await SendTestReport();
+           // await SendTestReport();
 
             // Проверяем и отправляем отчеты за сегодня
             await CheckAndSendTodaysReports();
