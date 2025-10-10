@@ -8,9 +8,6 @@ namespace CountryTelegramBot.Models
         DateTime NightVideoEndDate { get; }
         DateTime DayVideoStartDate { get; }
         DateTime DayVideoEndDate { get; }
-        void CalculateNextMorningReport();
-        void CalculateNextEveningReport();
-        void CalculateNextNightPeriod();
-        void CalculateNextDayPeriod();
+
     }
 }

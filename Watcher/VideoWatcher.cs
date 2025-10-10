@@ -180,6 +180,8 @@ namespace CountryTelegramBot
                     // Проверяем, не был ли отчет уже отправлен
                     if (watcherType == CountryTelegramBot.Services.WatcherType.Morning)
                     {
+                        // Для утреннего типа проверяем отчет за предыдущую ночь
+                        // Сегодня 10.10.2025, проверяем период с 09.10.2025 23:00 до 10.10.2025 08:00
                         var startDate = timeHelper.NightVideoStartDate.AddDays(-1);
                         var endDate = timeHelper.NightVideoEndDate.AddDays(-1);
                         
@@ -193,14 +195,15 @@ namespace CountryTelegramBot
                         
                         var vid = await videoRepository.GetVideosAsync(startDate, endDate);
                         await bot.SendVideoGroupAsync(vid, startDate, endDate);
-                        timeHelper.CalculateNextNightPeriod();
-                        timeHelper.CalculateNextMorningReport();
+                        // Убираем вызовы обновления дат, так как они теперь вычисляются динамически
                     }
                     else if (watcherType == CountryTelegramBot.Services.WatcherType.MorningAndEvening)
                     {
                         // Для утренне-вечернего типа проверяем оба периода
+                        // Ночной отчет: с вечера вчерашнего дня до утра сегодня
                         var nightStartDate = timeHelper.NightVideoStartDate.AddDays(-1);
                         var nightEndDate = timeHelper.NightVideoEndDate.AddDays(-1);
+                        // Дневной отчет: с утра сегодня до вечера сегодня
                         var dayStartDate = timeHelper.DayVideoStartDate;
                         var dayEndDate = timeHelper.DayVideoEndDate;
                         
@@ -230,10 +233,7 @@ namespace CountryTelegramBot
                             await bot.SendVideoGroupAsync(vidDay, dayStartDate, dayEndDate);
                         }
 
-                        timeHelper.CalculateNextDayPeriod();
-                        timeHelper.CalculateNextNightPeriod();
-                        timeHelper.CalculateNextMorningReport();
-                        timeHelper.CalculateNextEveningReport();
+                        // Убираем вызовы обновления дат, так как они теперь вычисляются динамически
                     }
                 }
             }
