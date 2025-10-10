@@ -183,8 +183,8 @@ namespace CountryTelegramBot
                         var startDate = timeHelper.NightVideoStartDate.AddDays(-1);
                         var endDate = timeHelper.NightVideoEndDate.AddDays(-1);
                         
-                        // Проверяем статус отчета перед отправкой
-                        var reportStatus = dbConnection.GetReportStatus(startDate, endDate);
+                        // Проверяем статус отчета перед отправкой (асинхронно)
+                        var reportStatus = await dbConnection.GetReportStatusAsync(startDate, endDate);
                         if (reportStatus != null && reportStatus.IsSent)
                         {
                             logger.LogInformation($"Утренний отчет за {startDate} - {endDate} уже был отправлен ранее ({reportStatus.SentAt})");
@@ -204,9 +204,9 @@ namespace CountryTelegramBot
                         var dayStartDate = timeHelper.DayVideoStartDate;
                         var dayEndDate = timeHelper.DayVideoEndDate;
                         
-                        // Проверяем статус отчетов перед отправкой
-                        var nightReportStatus = dbConnection.GetReportStatus(nightStartDate, nightEndDate);
-                        var dayReportStatus = dbConnection.GetReportStatus(dayStartDate, dayEndDate);
+                        // Проверяем статус отчетов перед отправкой (асинхронно)
+                        var nightReportStatus = await dbConnection.GetReportStatusAsync(nightStartDate, nightEndDate);
+                        var dayReportStatus = await dbConnection.GetReportStatusAsync(dayStartDate, dayEndDate);
                         
                         bool nightReportSent = nightReportStatus != null && nightReportStatus.IsSent;
                         bool dayReportSent = dayReportStatus != null && dayReportStatus.IsSent;

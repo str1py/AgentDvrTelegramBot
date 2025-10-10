@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Telegram.Bot;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -564,8 +564,8 @@ namespace CountryTelegramBot
             {
                 logger?.LogInformation($"Сохранение статуса отправки отчета в БД: {start} - {end}, Успешно: {sendSuccess}, Ошибка: {errorMessage}");
                 
-                // Проверяем, есть ли уже запись для этого периода отчета
-                var existingReportStatus = dbConnection.GetReportStatus(start, end);
+                // Проверяем, есть ли уже запись для этого периода отчета (асинхронно)
+                var existingReportStatus = await dbConnection.GetReportStatusAsync(start, end);
                 if (existingReportStatus != null)
                 {
                     // Обновляем существующую запись

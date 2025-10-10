@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.EntityFrameworkCore;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -111,7 +111,7 @@ internal class Program
                 }, ServiceLifetime.Scoped);
                 
                 // Регистрация сервисов с обработкой ошибок
-                services.AddSingleton<IVideoRepository>(provider =>
+                services.AddScoped<IVideoRepository>(provider =>
                 {
                     try
                     {
@@ -126,20 +126,15 @@ internal class Program
                     }
                 });
                 
-                // Регистрация IDbConnection
-                services.AddSingleton<IDbConnection>(provider =>
+                // Регистрация IDbConnection как Scoped вместо Singleton
+                services.AddScoped<IDbConnection>(provider =>
                 {
                     try
                     {
                         var logger = provider.GetRequiredService<ILogger<DbConnection>>();
                         var context = provider.GetRequiredService<DbCountryContext>();
                         var errorHandler = provider.GetService<IErrorHandler>();
-                        // Создаем DbContextOptions для DbConnection
-                        var options = new DbContextOptionsBuilder<DbCountryContext>()
-                            .UseMySql(context.Database.GetDbConnection().ConnectionString, 
-                                     ServerVersion.AutoDetect(context.Database.GetDbConnection().ConnectionString))
-                            .Options;
-                        return new DbConnection(logger, options, errorHandler);
+                        return new DbConnection(logger, context, errorHandler);
                     }
                     catch (Exception ex)
                     {
@@ -215,7 +210,7 @@ internal class Program
                 });
 
                 // Регистрация ReportService
-                services.AddSingleton<IReportService, ReportService>(provider =>
+                services.AddScoped<IReportService, ReportService>(provider =>
                 {
                     var dbConnection = provider.GetRequiredService<IDbConnection>();
                     var telegramBotService = provider.GetRequiredService<ITelegramBotService>();
@@ -227,7 +222,7 @@ internal class Program
                 });
                 
                 // Регистрация UnsentReportService
-                services.AddSingleton<IUnsentReportService, UnsentReportService>(provider =>
+                services.AddScoped<IUnsentReportService, UnsentReportService>(provider =>
                 {
                     var telegramBotService = provider.GetRequiredService<ITelegramBotService>();
                     var videoRepository = provider.GetRequiredService<IVideoRepository>();
@@ -242,7 +237,7 @@ internal class Program
                 });
 
                 // Регистрация AppInitializationService
-                services.AddSingleton<IAppInitializationService, AppInitializationService>(provider =>
+                services.AddScoped<IAppInitializationService, AppInitializationService>(provider =>
                 {
                     var dbConnection = provider.GetRequiredService<IDbConnection>();
                     var telegramBotService = provider.GetRequiredService<ITelegramBotService>();

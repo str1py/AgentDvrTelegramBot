@@ -1,17 +1,17 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using CountryTelegramBot.Models;
 
 namespace CountryTelegramBot.Models
 {
     public interface IDbConnection
     {
+        bool IsConnected { get; }
+        
         Task AddVideoData(string path, string grab);
         List<VideoModel> GetVideos(DateTime startDate, DateTime endDate);
         Task<List<VideoModel>> GetVideosAsync(DateTime startDate, DateTime endDate);
         Task<VideoModel> GetLastVideo();
         Task<bool> RemoveItemByPath(string path);
-        bool IsConnected { get; }
+        List<VideoModel> GetBrokenVideos();
         
         // Методы для работы со статусом отчетов
         Task AddReportStatus(DateTime startDate, DateTime endDate, bool isSent, string? errorMessage = null);

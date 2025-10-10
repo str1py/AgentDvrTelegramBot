@@ -46,8 +46,8 @@ namespace CountryTelegramBot.Services
             {
                 _logger.LogInformation("Проверка неотправленных отчетов при запуске приложения");
                 
-                // Получаем все неотправленные отчеты из базы данных
-                var unsentReports = _dbConnection.GetUnsentReports();
+                // Получаем все неотправленные отчеты из базы данных (асинхронно)
+                var unsentReports = await Task.Run(() => _dbConnection.GetUnsentReports());
                 _logger.LogInformation($"Найдено {unsentReports.Count} неотправленных отчетов при запуске");
                 
                 // Отправляем каждый неотправленный отчет
