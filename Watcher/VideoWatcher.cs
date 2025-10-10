@@ -100,6 +100,13 @@ namespace CountryTelegramBot
                     return;
                 }
                 
+                // Проверяем, не является ли файл сжатым видео (содержит "_compressed" в имени)
+                if (Path.GetFileName(e.FullPath).Contains("_compressed"))
+                {
+                    logger?.LogInformation($"Пропущено сжатое видео (содержит '_compressed' в имени): {e.FullPath}");
+                    return;
+                }
+                
                 await Task.Delay(30000); // Ждём 30 секунд, пока файл полностью запишется
                 logger?.LogInformation($"{e.ChangeType}: {e.FullPath}");
                 var path = e.FullPath;

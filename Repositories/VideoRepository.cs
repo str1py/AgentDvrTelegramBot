@@ -25,6 +25,13 @@ namespace CountryTelegramBot.Repositories
             
             if (string.IsNullOrWhiteSpace(grab))
                 throw new ArgumentException("Путь к изображению превью не может быть пустым", nameof(grab));
+                
+            // Проверяем, не является ли файл сжатым видео (содержит "_compressed" в имени)
+            if (Path.GetFileName(path).Contains("_compressed"))
+            {
+                _logger.LogInformation("Пропущено сжатое видео (содержит '_compressed' в имени): {VideoPath}", path);
+                return;
+            }
 
             try
             {
