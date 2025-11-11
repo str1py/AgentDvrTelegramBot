@@ -38,5 +38,10 @@ namespace CountryTelegramBot.Models
         /// Error message if sending failed
         /// </summary>
         public string? ErrorMessage { get; set; }
+        
+        /// <summary>
+        /// Number of send attempts
+        /// </summary>
+        public int SendAttempts { get; set; } = 0;
     }
 }

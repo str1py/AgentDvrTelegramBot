@@ -75,6 +75,31 @@ namespace CountryTelegramBot.Services
                         catch (Exception ex)
                         {
                             _logger.LogError(ex, $"Ошибка при повторной отправке отчета за период {report.StartDate} - {report.EndDate} (ID: {report.Id})");
+                            
+                            // ВАЖНО: Даже при ошибке отправки мы должны обновить статус отчета, 
+                            // чтобы предотвратить бесконечные попытки отправки
+                            try
+                            {
+                                // Проверяем количество попыток отправки
+                                if (report.SendAttempts >= 3)
+                                {
+                                    // Если количество попыток превышает 3, прекращаем попытки отправки
+                                    var errorMessage = $"Отчет не был отправлен после 3 попыток. Ошибка при отправке: {ex.Message}. Попытки отправки прекращены для предотвращения спама.";
+                                    await _dbConnection.UpdateReportStatus(report.Id, false, errorMessage);
+                                    _logger.LogInformation($"Статус отчета обновлен для предотвращения бесконечных попыток отправки (ID: {report.Id}). Достигнут лимит попыток.");
+                                }
+                                else
+                                {
+                                    // Если количество попыток не превышает 3, увеличиваем счетчик попыток
+                                    var errorMessage = $"Ошибка при отправке отчета: {ex.Message}. Количество попыток: {report.SendAttempts + 1}.";
+                                    await _dbConnection.UpdateReportStatus(report.Id, false, errorMessage);
+                                    _logger.LogInformation($"Статус отчета обновлен. Количество попыток увеличено (ID: {report.Id}).");
+                                }
+                            }
+                            catch (Exception dbEx)
+                            {
+                                _logger.LogError(dbEx, $"Ошибка при обновлении статуса отчета в базе данных (ID: {report.Id})");
+                            }
                         }
                     }
                 }
@@ -251,6 +276,12 @@ namespace CountryTelegramBot.Services
                     // Создаем новую запись с IsSent = false
                     await _dbConnection.AddReportStatus(startDate, endDate, false, null);
                     _logger.LogInformation($"Добавлена запись о попытке отправки отчета: {startDate} - {endDate}");
+                }
+                else
+                {
+                    // Если запись уже существует, увеличиваем счетчик попыток
+                    await _dbConnection.UpdateReportStatus(existingReportStatus.Id, false, "Повторная попытка отправки отчета");
+                    _logger.LogInformation($"Обновлена запись о попытке отправки отчета: {startDate} - {endDate}");
                 }
             }
             catch (Exception ex)

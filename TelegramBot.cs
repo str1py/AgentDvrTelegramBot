@@ -531,16 +531,47 @@ namespace CountryTelegramBot
                 sendSuccess = false;
                 errorMessage = $"Критическая ошибка при отправке отчета: {ex.Message}";
                 logger?.LogError(ex, "Критическая ошибка при отправке отчета");
-                
-                // Сообщаем об ошибке пользователю
-                await bot.SendMessage(
-                    chatId: chatId,
-                    text: $"❌ Критическая ошибка при отправке отчета: {ex.Message}",
-                    parseMode: ParseMode.Html
-                );
             }
             finally
             {
+                // Сохраняем статус отправки отчета в базу данных
+                // ВАЖНО: Даже при ошибках отправки мы должны обновить статус, чтобы предотвратить бесконечные попытки отправки
+                try
+                {
+                    logger?.LogInformation($"Сохранение статуса отправки отчета в БД: {start} - {end}, Успешно: {sendSuccess}, Ошибка: {errorMessage}");
+                    
+                    // Проверяем, есть ли уже запись для этого периода отчета (асинхронно)
+                    var existingReportStatus = await dbConnection.GetReportStatusAsync(start, end);
+                    if (existingReportStatus != null)
+                    {
+                        // Обновляем существующую запись
+                        logger?.LogInformation($"Обновление существующей записи о статусе отчета (ID: {existingReportStatus.Id})");
+                        await dbConnection.UpdateReportStatus(existingReportStatus.Id, sendSuccess, errorMessage);
+                    }
+                    else
+                    {
+                        // Создаем новую запись
+                        logger?.LogInformation("Создание новой записи о статусе отчета");
+                        await dbConnection.AddReportStatus(start, end, sendSuccess, errorMessage);
+                    }
+                    
+                    logger?.LogInformation($"Статус отправки отчета сохранен: Успешно={sendSuccess}, Ошибка={errorMessage}");
+                }
+                catch (Exception dbEx)
+                {
+                    logger?.LogError(dbEx, "Ошибка при сохранении статуса отправки отчета");
+                }
+                
+                // Сообщаем об ошибке пользователю (после сохранения статуса, чтобы не было бесконечных попыток)
+                if (!sendSuccess)
+                {
+                    await bot.SendMessage(
+                        chatId: chatId,
+                        text: $"❌ Критическая ошибка при отправке отчета: {errorMessage}",
+                        parseMode: ParseMode.Html
+                    );
+                }
+                
                 // Очищаем временные сжатые файлы
                 foreach (var processedVideoPath in processedVideos)
                 {
@@ -557,33 +588,6 @@ namespace CountryTelegramBot
                         logger?.LogWarning(ex, $"Ошибка удаления временного файла: {processedVideoPath}");
                     }
                 }
-            }
-            
-            // Сохраняем статус отправки отчета в базе данных
-            try
-            {
-                logger?.LogInformation($"Сохранение статуса отправки отчета в БД: {start} - {end}, Успешно: {sendSuccess}, Ошибка: {errorMessage}");
-                
-                // Проверяем, есть ли уже запись для этого периода отчета (асинхронно)
-                var existingReportStatus = await dbConnection.GetReportStatusAsync(start, end);
-                if (existingReportStatus != null)
-                {
-                    // Обновляем существующую запись
-                    logger?.LogInformation($"Обновление существующей записи о статусе отчета (ID: {existingReportStatus.Id})");
-                    await dbConnection.UpdateReportStatus(existingReportStatus.Id, sendSuccess, errorMessage);
-                }
-                else
-                {
-                    // Создаем новую запись
-                    logger?.LogInformation("Создание новой записи о статусе отчета");
-                    await dbConnection.AddReportStatus(start, end, sendSuccess, errorMessage);
-                }
-                
-                logger?.LogInformation($"Статус отправки отчета сохранен: Успешно={sendSuccess}, Ошибка={errorMessage}");
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex, "Ошибка при сохранении статуса отправки отчета");
             }
         }
     

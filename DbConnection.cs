@@ -125,7 +125,8 @@ namespace CountryTelegramBot
                 IsSent = isSent,
                 AttemptedAt = DateTime.Now,
                 SentAt = isSent ? DateTime.Now : (DateTime?)null,
-                ErrorMessage = errorMessage
+                ErrorMessage = errorMessage,
+                SendAttempts = isSent ? 1 : 1 // При добавлении новой записи счетчик попыток начинается с 1
             };
             
             dbCountryContext.ReportStatus.Add(reportStatus);
@@ -153,6 +154,9 @@ namespace CountryTelegramBot
                 }
                 reportStatus.ErrorMessage = errorMessage;
                 
+                // Увеличиваем счетчик попыток отправки
+                reportStatus.SendAttempts++;
+                
                 dbCountryContext.ReportStatus.Update(reportStatus);
                 await dbCountryContext.SaveChangesAsync();
                 
@@ -170,16 +174,17 @@ namespace CountryTelegramBot
         public List<ReportStatusModel> GetUnsentReports()
         {
             logger?.LogInformation("Получение всех неотправленных отчетов из БД");
+            // Получаем только те неотправленные отчеты, у которых количество попыток отправки не превышает 3
             var unsentReports = dbCountryContext.ReportStatus
                 .AsNoTracking()
-                .Where(r => !r.IsSent)
+                .Where(r => !r.IsSent && r.SendAttempts <= 3)
                 .ToList();
-            logger?.LogInformation($"Найдено {unsentReports.Count} неотправленных отчетов");
+            logger?.LogInformation($"Найдено {unsentReports.Count} неотправленных отчетов (с ограничением по количеству попыток)");
             
             // Логируем информацию о каждом неотправленном отчете
             foreach (var report in unsentReports)
             {
-                logger?.LogInformation($"Неотправленный отчет (ID: {report.Id}): {report.StartDate} - {report.EndDate}");
+                logger?.LogInformation($"Неотправленный отчет (ID: {report.Id}): {report.StartDate} - {report.EndDate}, Попытки: {report.SendAttempts}");
             }
             
             return unsentReports;
