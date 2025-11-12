@@ -167,7 +167,8 @@ namespace CountryTelegramBot
                 
                 if (watcherType == CountryTelegramBot.Services.WatcherType.Morning)
                 {
-                    if (now >= timeHelper.MorningReport)
+                    // Для утреннего типа отправляем отчет в 8:00 утра
+                    if (now.Hour == 8 && now.Minute == 0)
                     {
                         shouldSendReport = true;
                         logger.LogInformation("Отправка утреннего отчета через SendVideo");
@@ -175,7 +176,8 @@ namespace CountryTelegramBot
                 }
                 else if (watcherType == CountryTelegramBot.Services.WatcherType.MorningAndEvening)
                 {
-                    if (now >= timeHelper.EveningReport)
+                    // Для утренне-вечернего типа отправляем отчеты в 8:00 утра и 23:00 вечера
+                    if ((now.Hour == 8 && now.Minute == 0) || (now.Hour == 23 && now.Minute == 0))
                     {
                         shouldSendReport = true;
                         logger.LogInformation("Отправка утренне-вечернего отчета через SendVideo");
@@ -201,7 +203,11 @@ namespace CountryTelegramBot
                         }
                         
                         var vid = await videoRepository.GetVideosAsync(startDate, endDate);
-                        await bot.SendVideoGroupAsync(vid, startDate, endDate);
+                        // Только отправляем отчет, если есть видео или если статус отчета еще не создан
+                        if (vid.Any() || reportStatus == null)
+                        {
+                            await bot.SendVideoGroupAsync(vid, startDate, endDate);
+                        }
                         // Убираем вызовы обновления дат, так как они теперь вычисляются динамически
                     }
                     else if (watcherType == CountryTelegramBot.Services.WatcherType.MorningAndEvening)
@@ -230,12 +236,16 @@ namespace CountryTelegramBot
                         var vidNight = await videoRepository.GetVideosAsync(nightStartDate, nightEndDate);
                         var vidDay = await videoRepository.GetVideosAsync(dayStartDate, dayEndDate);
 
-                        if (!nightReportSent)
+                        // Отправляем отчеты только если есть видео или если статус отчета еще не создан
+                        bool shouldSendNightReport = !nightReportSent && (vidNight.Any() || nightReportStatus == null);
+                        bool shouldSendDayReport = !dayReportSent && (vidDay.Any() || dayReportStatus == null);
+
+                        if (shouldSendNightReport)
                         {
                             await bot.SendVideoGroupAsync(vidNight, nightStartDate, nightEndDate);
                         }
                         
-                        if (!dayReportSent)
+                        if (shouldSendDayReport)
                         {
                             await bot.SendVideoGroupAsync(vidDay, dayStartDate, dayEndDate);
                         }

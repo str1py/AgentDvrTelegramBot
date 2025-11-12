@@ -99,10 +99,14 @@ namespace CountryTelegramBot.Services
                 if (unsentReports.Count == 0)
                 {
                     _logger.LogInformation("Нет неотправленных отчетов для повторной отправки при запуске");
+                    // Отправляем информационное сообщение пользователю
+                    await _telegramBotService.SendMessage(long.Parse(_commonConfig.ChatId), "Нет неотправленных отчетов для повторной отправки при запуске.");
                 }
                 else
                 {
                     _logger.LogInformation($"Завершена отправка {unsentReports.Count} неотправленных отчетов при запуске");
+                    // Отправляем информационное сообщение пользователю
+                    await _telegramBotService.SendMessage(long.Parse(_commonConfig.ChatId), $"Завершена отправка {unsentReports.Count} неотправленных отчетов при запуске.");
                 }
             }
             catch (Exception ex)

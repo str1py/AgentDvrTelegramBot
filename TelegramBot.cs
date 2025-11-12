@@ -265,11 +265,8 @@ namespace CountryTelegramBot
             if (videoList.Count == 0)
             {
                 logger?.LogInformation("Нет видео для отправки в отчете");
-                await bot.SendMessage(
-                    chatId: chatId,
-                    text: $"Тревог не зафиксировано с {start.ToShortDateString()} {start.ToShortTimeString()} по {end.ToShortDateString()} {end.ToShortTimeString()}",
-                    parseMode: ParseMode.Html
-                );
+                // Не отправляем сообщение "Тревог не зафиксировано", чтобы избежать спама
+                // Вместо этого просто завершаем выполнение метода
                 return;
             }
             
