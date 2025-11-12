@@ -180,8 +180,8 @@ namespace CountryTelegramBot.Services
                 else
                 {
                     _logger.LogInformation("Отчеты за сегодня уже были отправлены. Пропускаем отправку.");
-                    // Отправляем информационное сообщение пользователю
-                    await _telegramBotService.SendMessage(long.Parse(_commonConfig.ChatId), "Отчеты за сегодня уже были отправлены ранее.");
+                    // Убираем отправку сообщения, так как у нас нет доступа к ChatId в этом сервисе
+                    // await _telegramBotService.SendMessage(long.Parse(_commonConfig.ChatId), "Отчеты за сегодня уже были отправлены ранее.");
                 }
             }
             catch (Exception ex)

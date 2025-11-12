@@ -12,6 +12,14 @@ namespace CountryTelegramBot.Services
         Task StartBot();
 
         /// <summary>
+        /// Отправляет сообщение в Telegram
+        /// </summary>
+        /// <param name="chatId">ID чата</param>
+        /// <param name="text">Текст сообщения</param>
+        /// <returns>Задача отправки сообщения</returns>
+        Task SendMessage(long chatId, string text);
+
+        /// <summary>
         /// Безопасно отправляет видео в Telegram
         /// </summary>
         /// <param name="videoPath">Путь к видеофайлу</param>

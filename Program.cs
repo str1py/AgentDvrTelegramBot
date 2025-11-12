@@ -230,10 +230,11 @@ internal class Program
                     var reportService = provider.GetRequiredService<IReportService>();
                     var configuration = provider.GetRequiredService<IConfiguration>();
                     var commonConfig = configuration.GetSection("Common").Get<CountryTelegramBot.Configs.CommonConfig>() ?? new CountryTelegramBot.Configs.CommonConfig();
+                    var telegramBotConfig = configuration.GetSection("TelegramBot").Get<TelegramBotConfig>() ?? new TelegramBotConfig();
                     var logger = provider.GetRequiredService<ILogger<UnsentReportService>>();
                     var dbConnection = provider.GetRequiredService<IDbConnection>();
                     
-                    return new UnsentReportService(telegramBotService, videoRepository, timeHelper, reportService, commonConfig, logger, dbConnection);
+                    return new UnsentReportService(telegramBotService, videoRepository, timeHelper, reportService, commonConfig, telegramBotConfig, logger, dbConnection);
                 });
 
                 // Регистрация AppInitializationService

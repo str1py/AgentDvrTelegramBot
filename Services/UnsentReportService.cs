@@ -16,6 +16,7 @@ namespace CountryTelegramBot.Services
         private readonly TimeHelper _timeHelper;
         private readonly IReportService _reportService;
         private readonly CommonConfig _commonConfig;
+        private readonly TelegramBotConfig _telegramBotConfig; // Добавляем TelegramBotConfig
         private readonly ILogger<UnsentReportService> _logger;
         private readonly IDbConnection _dbConnection;
 
@@ -25,6 +26,7 @@ namespace CountryTelegramBot.Services
             TimeHelper timeHelper,
             IReportService reportService,
             CommonConfig commonConfig,
+            TelegramBotConfig telegramBotConfig, // Добавляем параметр
             ILogger<UnsentReportService> logger,
             IDbConnection dbConnection)
         {
@@ -33,6 +35,7 @@ namespace CountryTelegramBot.Services
             _timeHelper = timeHelper ?? throw new ArgumentNullException(nameof(timeHelper));
             _reportService = reportService ?? throw new ArgumentNullException(nameof(reportService));
             _commonConfig = commonConfig ?? throw new ArgumentNullException(nameof(commonConfig));
+            _telegramBotConfig = telegramBotConfig ?? throw new ArgumentNullException(nameof(telegramBotConfig)); // Инициализируем
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _dbConnection = dbConnection ?? throw new ArgumentNullException(nameof(dbConnection));
         }
@@ -100,13 +103,13 @@ namespace CountryTelegramBot.Services
                 {
                     _logger.LogInformation("Нет неотправленных отчетов для повторной отправки при запуске");
                     // Отправляем информационное сообщение пользователю
-                    await _telegramBotService.SendMessage(long.Parse(_commonConfig.ChatId), "Нет неотправленных отчетов для повторной отправки при запуске.");
+                    await _telegramBotService.SendMessage(long.Parse(_telegramBotConfig.ChatId), "Нет неотправленных отчетов для повторной отправки при запуске.");
                 }
                 else
                 {
                     _logger.LogInformation($"Завершена отправка {unsentReports.Count} неотправленных отчетов при запуске");
                     // Отправляем информационное сообщение пользователю
-                    await _telegramBotService.SendMessage(long.Parse(_commonConfig.ChatId), $"Завершена отправка {unsentReports.Count} неотправленных отчетов при запуске.");
+                    await _telegramBotService.SendMessage(long.Parse(_telegramBotConfig.ChatId), $"Завершена отправка {unsentReports.Count} неотправленных отчетов при запуске.");
                 }
             }
             catch (Exception ex)
