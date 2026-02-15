@@ -63,7 +63,7 @@ namespace CountryTelegramBot
             return errorCode == 32 || errorCode == 33; // ERROR_SHARING_VIOLATION или ERROR_LOCK_VIOLATION
         }
 
-        public FileSystemWatcher CreateFolderWatcher(string folder)
+        public FileSystemWatcher? CreateFolderWatcher(string folder)
         {
             if (!Directory.Exists(folder))
             {

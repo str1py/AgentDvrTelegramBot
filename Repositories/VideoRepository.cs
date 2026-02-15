@@ -22,11 +22,13 @@ namespace CountryTelegramBot.Repositories
         {
             if (string.IsNullOrWhiteSpace(path))
                 throw new ArgumentException("Путь к видеофайлу не может быть пустым", nameof(path));
-            
-            if (string.IsNullOrWhiteSpace(grab))
-                throw new ArgumentException("Путь к изображению превью не может быть пустым", nameof(grab));
-                
-            // Проверяем, не является ли файл сжатым видео (содержит "_compressed" в имени)
+
+            var normalizedGrab = grab ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(normalizedGrab))
+            {
+                _logger.LogWarning("������ �� �������. ����� ����� ��������� ��� grab: {VideoPath}", path);
+            }
+// Проверяем, не является ли файл сжатым видео (содержит "_compressed" в имени)
             if (Path.GetFileName(path).Contains("_compressed"))
             {
                 _logger.LogInformation("Пропущено сжатое видео (содержит '_compressed' в имени): {VideoPath}", path);
@@ -38,7 +40,7 @@ namespace CountryTelegramBot.Repositories
                 var videoModel = new VideoModel 
                 { 
                     Path = path, 
-                    Grab = grab, 
+                    Grab = normalizedGrab, 
                     Date = DateTime.Now 
                 };
 
@@ -137,3 +139,5 @@ namespace CountryTelegramBot.Repositories
         }
     }
 }
+
+

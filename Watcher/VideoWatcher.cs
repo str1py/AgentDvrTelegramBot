@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Data;
 using System.Reflection.Metadata;
 using CountryTelegramBot.Repositories;
@@ -38,7 +39,7 @@ namespace CountryTelegramBot
         private readonly List<string> folders;
         private readonly List<FileSystemWatcher> watchers;
         private readonly ITelegramBotService bot;
-        private readonly ILogger<VideoWatcher>? logger;
+        private readonly ILogger<VideoWatcher> logger;
         private IVideoRepository videoRepository;
         private CountryTelegramBot.Services.WatcherType watcherType;
         private bool disposed;
@@ -58,7 +59,7 @@ namespace CountryTelegramBot
             ILogger<VideoWatcher>? logger = null)
         {
             this.bot = bot ?? throw new ArgumentNullException(nameof(bot));
-            this.logger = logger;
+            this.logger = logger ?? NullLogger<VideoWatcher>.Instance;
             this.fileHelper = fileHelper ?? throw new ArgumentNullException(nameof(fileHelper));
             this.videoRepository = videoRepository ?? throw new ArgumentNullException(nameof(videoRepository));
             this.timeHelper = timeHelper ?? throw new ArgumentNullException(nameof(timeHelper));
@@ -74,13 +75,18 @@ namespace CountryTelegramBot
                 var watcher = fileHelper.CreateFolderWatcher(folder);
                 if (watcher != null)
                 {
-                    watcher.Created += async (s, e) => await OnNewVideo(s, e);
+                    watcher.Created += OnWatcherCreated;
                     watchers.Add(watcher);
                     logger?.LogInformation($"Мониторю {folder}...");
                 }
             }
             StartWatching();
             dailyScheduler = new DailyScheduler(SendVideo);
+        }
+
+        private void OnWatcherCreated(object sender, FileSystemEventArgs e)
+        {
+            _ = OnNewVideo(sender, e);
         }
 
         private async Task OnNewVideo(object sender, FileSystemEventArgs e)
@@ -113,7 +119,7 @@ namespace CountryTelegramBot
                 
                 // Ищем превью-изображение в той же папке или в подпапке grabs
                 var _path = Path.GetDirectoryName(e.FullPath);
-                var folderPath = Path.Combine(_path, "grabs");
+                var folderPath = Path.Combine(_path ?? string.Empty, "grabs");
                 logger?.LogInformation($"Путь к grabs скомбинирован {folderPath}");
                 var grab = GetLastGrab(folderPath);
                 
@@ -155,7 +161,12 @@ namespace CountryTelegramBot
             }
         }
 
-        private async void SendVideo(object? state)
+        private void SendVideo(object? state)
+        {
+            _ = SendVideoAsync(state);
+        }
+
+        private async Task SendVideoAsync(object? state)
         {
             try
             {
@@ -312,14 +323,26 @@ namespace CountryTelegramBot
 
         public void Dispose()
         {
-            //if (disposed) return;
-            //foreach (var watcher in watchers)
-            //{
-            //    watcher.EnableRaisingEvents = false;
-            //    watcher.Created -= async (s, e) => await OnNewVideo(s, e); ;
-            //    watcher.Dispose();
-            //}
-            //disposed = true;
+            if (disposed) return;
+
+            foreach (var watcher in watchers)
+            {
+                try
+                {
+                    watcher.EnableRaisingEvents = false;
+                    watcher.Created -= OnWatcherCreated;
+                    watcher.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Ошибка освобождения FileSystemWatcher");
+                }
+            }
+
+            dailyScheduler.Dispose();
+            disposed = true;
         }
     }
 }
+
+

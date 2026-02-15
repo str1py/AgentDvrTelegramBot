@@ -40,15 +40,18 @@ namespace CountryTelegramBot.Services
         /// </summary>
         public void StartPeriodicCheck()
         {
-            _logger.LogInformation("Запуск периодической проверки неотправленных отчетов");
-            // Проверяем каждые 30 минут вместо 10, чтобы уменьшить нагрузку
-            _timer.Change(TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(30));
+            _logger.LogInformation("������������� ����������� �������������� ������� ���������.");
         }
 
         /// <summary>
         /// Проверяет и отправляет неотправленные отчеты
         /// </summary>
-        private async void CheckUnsentReports(object? state)
+        private void CheckUnsentReports(object? state)
+        {
+            _ = CheckUnsentReportsAsync(state);
+        }
+
+        private async Task CheckUnsentReportsAsync(object? state)
         {
             try
             {
@@ -328,3 +331,5 @@ namespace CountryTelegramBot.Services
         MorningAndEvening
     }
 }
+
+

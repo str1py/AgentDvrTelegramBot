@@ -43,18 +43,19 @@ namespace CountryTelegramBot.Services
             _logger.LogInformation("Инициализация приложения...");
 
             // Проверяем подключение к базе данных
-            await CheckDatabaseConnection();
+            CheckDatabaseConnection();
 
             // Инициализируем AgentDVR
             await InitializeAgentDvr();
 
-            // Запускаем периодическую проверку неотправленных отчетов
-            _reportService.StartPeriodicCheck();
+            // Автоповторы неотправленных отчетов отключены:
+            // проблемный отчет не должен блокировать отправку следующих отчетов по расписанию.
+            // Повтор выполняется только один раз при запуске приложения (SendUnsentReportsAtStartupAsync).
 
             _logger.LogInformation("Инициализация приложения завершена");
         }
 
-        private async Task CheckDatabaseConnection()
+        private void CheckDatabaseConnection()
         {
             try
             {
@@ -88,3 +89,4 @@ namespace CountryTelegramBot.Services
         }
     }
 }
+

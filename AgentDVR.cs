@@ -151,47 +151,59 @@ namespace CountryTelegramBot
             }
         }
 
-        private async void ForcedArmedByTime(object? state)
+        private void ForcedArmedByTime(object? state)
         {
-            var now = DateTime.Now;
-            logger?.LogInformation($"{DateTime.Now.ToShortTimeString()}: Here is a tick in ForecedArmedByTime");
-            if (await GetSystemState())
+            _ = ForcedArmedByTimeAsync(state);
+        }
+
+        private async Task ForcedArmedByTimeAsync(object? state)
+        {
+            try
             {
-                var isArmed = await GetArmState();
-
-                (DateTime minDay, DateTime maxDay) = GetDayInterval(now);
-                if (now.Hour >= minDay.Hour && now.Hour < maxDay.Hour)
+                var now = DateTime.Now;
+                logger?.LogInformation($"{DateTime.Now.ToShortTimeString()}: Here is a tick in ForecedArmedByTime");
+                if (await GetSystemState())
                 {
-                    if (IsForcedArmedAtDay && !isArmed)
+                    var isArmed = await GetArmState();
+
+                    (DateTime minDay, DateTime maxDay) = GetDayInterval(now);
+                    if (now.Hour >= minDay.Hour && now.Hour < maxDay.Hour)
                     {
-                        await SetArmState(true);
-                        logger?.LogInformation($"Включаю дневную защиту до {maxDay}");
+                        if (IsForcedArmedAtDay && !isArmed)
+                        {
+                            await SetArmState(true);
+                            logger?.LogInformation($"Включаю дневную защиту до {maxDay}");
+                        }
+                        else if (IsForcedArmedAtDay && isArmed)
+                            logger?.LogInformation($"Дневная защита уже включена до {maxDay}");
+                        else if (!IsForcedArmedAtDay && isArmed)
+                        {
+                            logger?.LogInformation($"Произвожу отключение защиты (дневная защита отключена в настройках)");
+                            await SetArmState(false);
+                        }
                     }
-                    else if (IsForcedArmedAtDay && isArmed)
-                        logger?.LogInformation($"Дневная защита уже включена до {maxDay}");
-                    else if (!IsForcedArmedAtDay && isArmed)
+
+                    (DateTime minNight, DateTime maxNight) = GetNightInterval(now);
+                    if (now.Hour >= minNight.Hour && now <= maxNight)
                     {
-                        logger?.LogInformation($"Произвожу отключение защиты (дневная защита отключена в настройках)");
-                        await SetArmState(false);
+                        if (IsForcedArmedAtNight && !isArmed)
+                        {
+                            await SetArmState(true);
+                            logger?.LogInformation($"Включаю ночную защиту до {maxNight}");
+                        }
+                        else if (IsForcedArmedAtNight && isArmed)
+                            logger?.LogInformation($"Ночная защита уже включена до {maxNight}");
+                        else if (!IsForcedArmedAtNight && isArmed)
+                        {
+                            logger?.LogInformation($"Произвожу отключение защиты (ночная защита отключена в настройках)");
+                            await SetArmState(false);
+                        }
                     }
                 }
-
-                (DateTime minNight, DateTime maxNight) = GetNightInterval(now);
-                if (now.Hour >= minNight.Hour && now <= maxNight)
-                {
-                    if (IsForcedArmedAtNight && !isArmed)
-                    {
-                        await SetArmState(true);
-                        logger?.LogInformation($"Включаю ночную защиту до {maxNight}");
-                    }
-                    else if (IsForcedArmedAtNight && isArmed)
-                        logger?.LogInformation($"Ночная защита уже включена до {maxNight}");
-                    else if (!IsForcedArmedAtNight && isArmed)
-                    {
-                        logger?.LogInformation($"Произвожу отключение защиты (ночная защита отключена в настройках)");
-                        await SetArmState(false);
-                    }
-                }
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Ошибка в ForcedArmedByTime");
             }
         }
 

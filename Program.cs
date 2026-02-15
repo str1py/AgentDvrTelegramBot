@@ -55,9 +55,8 @@ internal class Program
             
             // Приложение продолжает работу
             logger.LogInformation("Приложение запущено и продолжает работу. Нажмите Ctrl+C для завершения.");
-                
-            // Ждем бесконечно, чтобы приложение продолжало работать
-            await Task.Delay(-1);
+
+            await host.RunAsync();
         }
         catch (Exception ex)
         {
@@ -119,10 +118,12 @@ internal class Program
                         var logger = provider.GetRequiredService<ILogger<VideoRepository>>();
                         return new VideoRepository(context, logger);
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
-                        // Возвращаем заглушку, если не можем создать реальный репозиторий
-                        return null;
+                        var startupLogger = provider.GetRequiredService<ILogger<Program>>();
+                        startupLogger.LogWarning(ex, "Ошибка создания VideoRepository. Используем in-memory fallback.");
+                        var fallbackLogger = provider.GetRequiredService<ILogger<InMemoryVideoRepository>>();
+                        return new InMemoryVideoRepository(fallbackLogger);
                     }
                 });
                 
@@ -139,8 +140,9 @@ internal class Program
                     catch (Exception ex)
                     {
                         var logger = provider.GetRequiredService<ILogger<Program>>();
-                        logger.LogWarning(ex, "Ошибка создания подключения к базе данных. Продолжаем работу без базы данных.");
-                        return null;
+                        logger.LogWarning(ex, "Ошибка создания подключения к базе данных. Используем in-memory fallback.");
+                        var fallbackLogger = provider.GetRequiredService<ILogger<InMemoryDbConnection>>();
+                        return new InMemoryDbConnection(fallbackLogger);
                     }
                 });
                 
@@ -181,7 +183,10 @@ internal class Program
                     var fileHelper = provider.GetRequiredService<IFileHelper>();
                     var videoCompressionService = provider.GetRequiredService<IVideoCompressionService>();
                     
-                    var botConfig = configuration.GetSection("TelegramBot").Get<TelegramBotConfig>();
+                    var botConfig = configuration.GetSection("TelegramBot").Get<TelegramBotConfig>()
+                        ?? throw new InvalidOperationException("Секция TelegramBot не настроена.");
+                    if (string.IsNullOrWhiteSpace(botConfig.BotToken) || string.IsNullOrWhiteSpace(botConfig.ChatId))
+                        throw new InvalidOperationException("BotToken и ChatId должны быть заполнены в секции TelegramBot.");
                     
                     // Получаем сервисы через провайдер, а не через scope
                     return new TelegramBot(botConfig.BotToken, botConfig.ChatId, agentDvr, 

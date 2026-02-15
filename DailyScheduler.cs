@@ -26,7 +26,7 @@ public class DailyScheduler : IDailyScheduler
         StartTimer();
     }
 
-    private async void ExecuteAllCallbacks(object? state)
+    private void ExecuteAllCallbacks(object? state)
     {
         foreach (var callback in callbacks)
         {
